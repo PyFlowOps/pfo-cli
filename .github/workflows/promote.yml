@@ -1,0 +1,41 @@
+# This is the workflow_dispatch event that will trigger the promote job
+name: Promote Release(s)
+run-name: Promote Release -- ${{ inputs.release-type }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      # Draft release(s) are created automatically by the release-drafter action
+      release-type:
+        description: 'Promote draft release to pre-release, or pre-release to release'
+        required: true
+        type: choice
+        options:
+          - pre-release
+          - release
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # This will promote the draft release to a pre-release (if there is a draft release, else will fail)
+      - name: Promote Pre-Release
+        if: inputs.release-type == 'pre-release'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "Running promote job..."
+          python ${{ github.workspace }}/.github/workflows/src/promote.py --prerelease
+        shell: bash
+
+      - name: Promote Release
+        if: inputs.release-type == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "Running promote job..."
+          python ${{ github.workspace }}/.github/workflows/src/promote.py --release
+        shell: bash

@@ -1,0 +1,79 @@
+name: Actions Entrypoint
+
+on:
+  push:
+    # branches to consider in the event; optional, defaults to all
+    branches:
+      - "main"
+  
+permissions:
+  contents: read
+
+jobs:
+  initialRelease:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Initial Release (Lone Job)
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "Running initial release job..."
+          python ${{ github.workspace }}/.github/workflows/src/initial_release.py
+
+  dataReportJob:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Data (Lone Job)
+        run: |
+          echo "Running data job..."
+          echo "Job Type: ${{ github.event_name }}"
+
+  # This will run our unit tests on every push to the repository
+  call-unit-tests:
+    uses: ./.github/workflows/dry-unit-tests.yml
+
+  # This will get our current version of the package from the pyproject.toml file
+  # We will need this to use for comparison within the release draft
+  call-versions:
+    needs: [call-unit-tests]
+    uses: ./.github/workflows/dry-versions.yml
+
+  test-versions:
+    needs: [call-unit-tests, call-versions]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Versions
+        run: |
+          echo "Checking versions..."
+          echo "TOML Version: ${{ needs.call-versions.outputs.toml_version }}"
+          if [ "${{ needs.call-versions.outputs.latest_version }}" == "" ]; then
+            echo "No Release Found!"
+          else
+            echo "Current Version: ${{ needs.call-versions.outputs.latest_version }}"
+          fi
+
+  # This will set our version number of the draft release based on the pyproject.toml file, and if there
+  # is a current version, it will be used as the base for the next release.
+  # We will need this to use for comparison within the release draft.
+  set-release-version:
+    needs: [call-versions, test-versions, call-unit-tests]
+    uses: ./.github/workflows/dry-draft-version.yml
+
+  update_release_draft:
+    uses: ./.github/workflows/dry-release-drafter.yml
+    needs: [initialRelease, set-release-version]
+    with:
+      draft_version: ${{ needs.set-release-version.outputs.draft_version }}
+    secrets:
+      # This is automatically provided by GitHub Actions, so we don't need to specify it in the workflow
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}

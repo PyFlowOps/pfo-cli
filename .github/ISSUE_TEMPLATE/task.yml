@@ -1,0 +1,54 @@
+name: Task
+description: Write up a task.
+title: "[Task]: "
+labels: ["task", "triage"]
+#projects: ["philipdelorenzo/2"]
+assignees:
+  - philipdelorenzo
+body:
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: What is the priority level for this task?
+      options: 
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: category
+    attributes:
+      label: Task Category
+      description: What type of task is this?
+      options:
+        - Implementation
+        - Configuration
+        - Optimization
+        - Deployment
+        - Research
+        - Data Migration
+        - Testing
+        - Other
+    validations:
+      required: true
+      
+  - type: textarea
+    id: descrtiption
+    attributes:
+      label: Description
+      description: What is the task?
+      placeholder: ex. We need to do something.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: How will we know when this task is done?
+      placeholder: ex. When all tests pass.
+    validations:
+      required: true

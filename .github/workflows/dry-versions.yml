@@ -1,0 +1,77 @@
+name: Manual Toml Version Check
+
+on:
+  workflow_call:
+    outputs:
+      toml_version:
+        description: 'The version from the pyproject.toml file'
+        value: ${{ jobs.versions.outputs.toml_version }}
+
+      latest_version:
+        description: 'The latest version (Published Release)'
+        value: ${{ jobs.versions.outputs.latest_version }}
+
+      draft_version:
+        description: 'The latest version (Draft Release)'
+        value: ${{ jobs.versions.outputs.draft_version }}
+
+jobs:
+  versions:
+    name: Project Versions
+    runs-on: 'ubuntu-latest'
+    outputs:
+      toml_version: ${{ steps.toml-version.outputs.toml_version }}
+      latest_version: ${{ steps.latest-version.outputs.latest_version }}
+      draft_version: ${{ steps.draft-version.outputs.draft_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python Setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12.6
+  
+      - name: Install PyTOML
+        run: pip install -r ${{ github.workspace }}/.github/workflows/src/requirements.txt
+        shell: bash
+  
+      - name: PyTOML Version
+        id: toml-version
+        run: |
+          #!/bin/bash
+          echo "Getting version from PyTOML file"
+          if [[ ! -f "${{ github.workspace }}/pyproject.toml" ]]; then
+            echo "PyTOML file not found!"
+            exit 1
+          fi
+  
+          # Read the version from the PyTOML file
+          _version=$(python ${{ github.workspace }}/.github/workflows/src/project_versions.py --toml)
+          echo "TOML Version: $_version"
+          echo "toml_version=$_version" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Current Release Version
+        id: latest-version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          #!/bin/bash
+          echo "Getting latest release version"
+          _version=$(python ${{ github.workspace }}/.github/workflows/src/project_versions.py --latest)
+          echo "Latest Release Version: $_version"
+          echo "latest_version=$_version" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Draft Release Version
+        id: draft-version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          #!/bin/bash
+          echo "Getting draft release version"
+          _version=$(python ${{ github.workspace }}/.github/workflows/src/project_versions.py --draft_release)
+          echo "Draft Release Version: $_version"
+          echo "draft_version=${_version}" >> $GITHUB_OUTPUT
+        shell: bash

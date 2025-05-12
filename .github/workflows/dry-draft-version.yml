@@ -1,0 +1,37 @@
+on:
+  workflow_call:
+    outputs:
+      draft_version:
+        description: 'The draft release version'
+        value: ${{ jobs.versions.outputs.draft_version }}
+
+jobs:
+  versions:
+    name: TOML Version
+    runs-on: 'ubuntu-latest'
+    outputs:
+      draft_version: ${{ steps.draft-version.outputs.draft_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python Setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12.6
+  
+      - name: Install PyTOML
+        run: pip install -r  ${{ github.workspace }}/.github/workflows/src/requirements.txt
+        shell: bash
+
+      - name: Draft Release Version
+        id: draft-version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          #!/bin/bash
+          echo "Getting draft release version"
+          _version=$(python ${{ github.workspace }}/.github/workflows/src/project_versions.py --draft_release)
+          echo "Draft Release Version: ${_version}"
+          echo "draft_version=${_version}" >> $GITHUB_OUTPUT
+        shell: bash

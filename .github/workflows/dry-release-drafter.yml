@@ -1,0 +1,30 @@
+on:
+  workflow_call:
+    inputs:
+      draft_version:
+        description: 'Draft version to use for the release'
+        required: true
+        type: string
+    secrets:
+      GH_TOKEN:
+        description: 'GitHub token for authentication'
+        # This is automatically provided by GitHub Actions, so we don't need to specify it in the workflow
+        # but we can specify it here to indicate that it is required for this workflow
+        required: true
+
+jobs:
+  draft-version:
+    name: Draft Release
+    runs-on: 'ubuntu-latest'
+    steps:
+        # Drafts your next Release notes as Pull Requests are merged into "master"
+        - name: Set Release Version
+          uses: release-drafter/release-drafter@v6
+          # (Optional) specify config name to use, relative to .github/. Default: release-drafter.yml
+          with:
+            version: ${{ inputs.draft_version }}
+            config-name: release-drafter-config.yml
+          # disable-autolabeler: true
+          env:
+            GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+  
