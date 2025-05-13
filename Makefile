@@ -15,12 +15,10 @@ install: ##@meta Installs needed prerequisites and software to develop the proje
 	@bash -l -c "dev/.python/bin/python -m pip install -r requirements.txt"
 	@asdf reshim
 	@echo "[INFO] - Installation Complete!"
-	@echo "[INFO] - You can now install the Cookie Cutter templates to your machine..."
-	@echo "" 
 
 setup: ##@meta Sets up the project
 	$(info ********** Setting up ${service_title} **********)
-	@bash -l "scripts/set-env.sh"
+	@bash -l scripts/set-env.sh
 	@echo "[INFO] - Project setup complete!"
 
 clean: ##@meta Cleans the project
