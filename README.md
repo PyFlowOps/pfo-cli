@@ -1,4 +1,4 @@
-![alt text](./docs/FullLogo_250x180.png)
+![alt text](./docs/FullLogo_Transparent.png)
 
 # pfo CLI Tool
 
