@@ -1,6 +1,8 @@
-# base-repo-template
+![alt text](./docs/FullLogo_Transparent.png)
 
-A base repo template for Python applications.
+# pfo CLI Tool
+
+This is the pfo CLI Tool.
 
 ## Prerequisites
 

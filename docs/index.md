@@ -1,5 +1,7 @@
 # pfo CLI
 
+![alt text](FullLogo_Transparent.png)
+
 This is the PyFlowOps CLI _(pfo CLI)_. This CLI is designed to work within the PyFlowOps
 ecosystem and will act as a liason between you, the developer, and the operations side
 of the development lifecycle.
