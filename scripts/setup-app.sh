@@ -15,6 +15,11 @@ if [[ ! -f "${REPO}/pyproject.toml" ]]; then
     exit 0
 else
     echo "[INFO] - Under Construction: The pyproject.toml file found in the repository..."
+
+    # Install Python dependencies using pip
+    echo "[INFO] - Installing Python Dependencies..."
+    ${REPO}/.python/bin/poetry install
+
     echo "[INFO] - Application Setup Complete!"
     exit 0
 fi

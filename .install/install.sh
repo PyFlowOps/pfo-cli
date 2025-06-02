@@ -17,7 +17,7 @@ _PYTHON=$(command -v python3)
 if [[ $(gh api /repos/PyFlowOps/pfo-cli/releases/latest | jq -r '.message') == *"Not Found"* ]]; then
   echo '[WARNING] - We cannot find a release for the pfo-cli...'
   echo '[ERROR] - Please ensure that the "PyFlowOps/pfo-cli" repository exists and is accessible.'
-  exit 0
+  exit 1
 fi
 
 _CLI_LATEST=$(gh api /repos/PyFlowOps/pfo-cli/releases/latest | jq -r '.tag_name')

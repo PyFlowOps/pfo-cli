@@ -11,19 +11,20 @@ install: ##@meta Installs needed prerequisites and software to develop the proje
 	$(info ********** Installing Developer Tooling Prerequisites **********)
 	@bash -l scripts/install.sh -a
 	@bash -l scripts/install.sh -p
-	@bash -l -c "dev/.python/bin/python -m pip install --upgrade pip"
-	@bash -l -c "dev/.python/bin/python -m pip install -r requirements.txt"
+	@bash -l -c ".python/bin/python -m pip install --upgrade pip"
+	@bash -l -c ".python/bin/python -m pip install -r requirements.txt"
+	@bash -l -c ".python/bin/poetry install"
 	@asdf reshim
 	@echo "[INFO] - Installation Complete!"
 
 setup: ##@meta Sets up the project
 	$(info ********** Setting up ${service_title} **********)
-	@bash -l scripts/set-env.sh
+	#@bash -l scripts/set-env.sh
 	@echo "[INFO] - Project setup complete!"
 
 clean: ##@meta Cleans the project
 	$(info ********** Cleaning ${service_title} **********)
-	@rm -rf ./dev
+	@rm -rf .python
 	@rm -rf .pytest_cache
 	@if [ -d ${HOME}/Library/Caches/pypoetry/virtualenvs ]; then rm -rf ${HOME}/Library/Caches/pypoetry/virtualenvs/${service}-*; fi
 
