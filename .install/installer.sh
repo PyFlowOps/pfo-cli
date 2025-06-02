@@ -14,15 +14,15 @@ OS=$(uname)
 [[ -z "$(command -v git || true)" ]] && echo '[ERROR] - Please ensure that the "git" tool is installed on the system.' && exit 1
 
 # Let's ensure this file exists in the $HOME/.cli/.install
-curl https://raw.githubusercontent.com/pyflowops/pfo-cli/refs/heads/main/pfo-cli/.install/_dl_inst.sh -o ${HOME}/.pfo/.install/_dl_inst.sh
+curl https://raw.githubusercontent.com/PyFlowOps/pfo-cli/refs/heads/main/.install/_dl_inst.sh -o ${HOME}/.pfo/.install/_dl_inst.sh
 
 _PYTHON=$(command -v python3)
-_CLI_LATEST=$(gh api /repos/pyflowops/pfo-cli/releases/latest | jq -r '.tag_name')
+_CLI_LATEST=$(gh api /repos/PyFlowOps/pfo-cli/releases/latest | jq -r '.tag_name')
 
 [[ "${OS}" == "Darwin" ]] && brew install pipx
 [[ "${OS}" == "Linux" ]] && $_PYTHON -m pip install --user pipx
 
-pipx install git+https://github.com/pyflowops/pfo-cli.git@${_CLI_LATEST} --force
+pipx install git+https://github.com/PyFlowOps/pfo-cli.git@${_CLI_LATEST} --force
 
 unset _PYTHON
 unset OS

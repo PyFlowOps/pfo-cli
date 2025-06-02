@@ -6,6 +6,6 @@
 set -euo pipefail
 
 # Let's ensure this file exists in the $HOME/.cli/.install
-curl https://raw.githubusercontent.com/pyflowops/pfo-cli/refs/heads/main/pfo-cli/.install/installer.sh -o /tmp/installer.sh \
+curl https://raw.githubusercontent.com/PyFlowOps/pfo-cli/refs/heads/main/pfo-cli/.install/installer.sh -o /tmp/installer.sh \
 && bash /tmp/installer.sh \
 && rm /tmp/installer.sh
