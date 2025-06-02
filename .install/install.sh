@@ -13,9 +13,6 @@ OS=$(uname)
 [[ -z $(command -v pipx || true) ]] && echo "[ERROR] - Please ensure that the "pipx" CLI tool is installed on the system." && exit 1
 [[ -z "$(command -v git || true)" ]] && echo '[ERROR] - Please ensure that the "git" tool is installed on the system.' && exit 1
 
-# Let's ensure this file exists in the $HOME/.cli/.install
-curl https://raw.githubusercontent.com/PyFlowOps/pfo-cli/refs/heads/main/.install/_dl_inst.sh -o ${HOME}/.pfo/.install/_dl_inst.sh
-
 _PYTHON=$(command -v python3)
 _CLI_LATEST=$(gh api /repos/PyFlowOps/pfo-cli/releases/latest | jq -r '.tag_name')
 
