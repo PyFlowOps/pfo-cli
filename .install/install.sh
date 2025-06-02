@@ -14,6 +14,12 @@ OS=$(uname)
 [[ -z "$(command -v git || true)" ]] && echo '[ERROR] - Please ensure that the "git" tool is installed on the system.' && exit 1
 
 _PYTHON=$(command -v python3)
+if [[ $(gh api /repos/PyFlowOps/pfo-cli/releases/latest | jq -r '.message') == *"Not Found"* ]]; then
+  echo '[WARNING] - We cannot find a release for the pfo-cli...'
+  echo '[ERROR] - Please ensure that the "PyFlowOps/pfo-cli" repository exists and is accessible.'
+  exit 0
+fi
+
 _CLI_LATEST=$(gh api /repos/PyFlowOps/pfo-cli/releases/latest | jq -r '.tag_name')
 
 [[ "${OS}" == "Darwin" ]] && brew install pipx
