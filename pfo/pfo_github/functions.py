@@ -327,7 +327,7 @@ def get_latest_cli_release_version() -> str:
 
     if ("release not found" in _ret) or (_ret == ""):
         spinner.stop()
-        spinner.fail("No releases found for pfo-cli.")
+        spinner.warn("No releases found for pfo-cli.")
         exit()
 
     exit()

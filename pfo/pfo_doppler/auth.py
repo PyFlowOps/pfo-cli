@@ -40,7 +40,7 @@ class DopplerAuth:
                     doppler = DopplerSDK()
                     doppler.set_access_token(os.environ.get("DOPPLER_TOKEN"))
                     res = doppler.secrets.get(
-                        name="PFO_DOPPLER_TOKEN", project="pfo", config="cli"
+                        name="PFO_DOPPLER_TOKEN", project="pyflowops", config="pfo-cli"
                     )
                     value_vars = vars(res)
                     # We need to set the PFO_DOPPLER_TOKEN in the environment
@@ -63,6 +63,6 @@ class DopplerAuth:
             )  # This means the PFO_DOPPLER_TOKEN is not set in the environment
         else:
             spinner.stop()
-            spinner.warn(
-                "Doppler token cannot be found, running the CLI with local variables only..."
+            spinner.info(
+                "Doppler token cannot be found, please setup your Doppler account and export your PFO_DOPPLER_TOKEN..."
             )

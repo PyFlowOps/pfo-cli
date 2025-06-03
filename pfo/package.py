@@ -28,43 +28,43 @@ spinner = Halo(text_color="blue", spinner="dots")
 
 
 @click.group(cls=DefaultCommandGroup, invoke_without_command=True)
-@optgroup.group(f"Registration", help=f"Package registration.")
+@optgroup.group(f"Registration", help=f"Package registration")
 @optgroup.option(
     "--register",
     required=False,
     is_flag=True,
-    help=f"This registers the package to be managed by .",
+    help=f"This registers the package to be managed by pfo",
 )
 @optgroup.option(
     "--deregister",
     required=False,
     is_flag=True,
-    help=f"This removes the package from pfo management.",
+    help=f"This removes the package from pfo management",
 )
-@optgroup.group(f"Versioning", help=f"Package versioning options.")
+@optgroup.group(f"Versioning", help=f"Package versioning options")
 @optgroup.option(
     "--version",
     required=False,
     is_flag=True,
-    help=f"This is the version of the pfo managed package.",
+    help=f"This is the version of the pfo managed package",
 )
 @optgroup.option(
     "--major",
     required=False,
     is_flag=True,
-    help=f"This bumps the version by a major release.",
+    help=f"This bumps the version by a major release",
 )
 @optgroup.option(
     "--minor",
     required=False,
     is_flag=True,
-    help=f"This bumps the version by a minor release.",
+    help=f"This bumps the version by a minor release",
 )
 @optgroup.option(
     "--patch",
     required=False,
     is_flag=True,
-    help=f"This bumps the version by a patch release.",
+    help=f"This bumps the version by a patch release",
 )
 def package(**params: dict) -> None:
     """Functions applicable to package management, microservices and Docker images.

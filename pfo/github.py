@@ -57,11 +57,11 @@ def repo(**params: dict) -> None:
     """
     if params["init"]:
         # Let's get the owner of the repo from the user
-        _accepted_owners = ["generic", "dev", "qa", "analytics", "sre"]
+        _accepted_owners = ["generic", "dev", "infra", "sre", "data"]
         _owner = click.prompt(
             f"Please enter the owner of the repo",
             type=click.Choice(
-                ["generic", "dev", "qa", "analytics", "sre"], case_sensitive=False
+                ["generic", "dev", "infra", "sre", "data"], case_sensitive=False
             ),
             default="generic",
         )
