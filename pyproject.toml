@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "pfo"
+version = "0.1.0"
+description = "PyFlowOps CLI"
+authors = ["Philip De Lorenzo <philip.delorenzo@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+click = "^8.1.7"
+tqdm = "^4.66.1"
+halo = "^0.0.31"
+docker = "^7.0.0"
+click-option-group = "^0.5.6"
+gitpython = "^3.1.41"
+doppler-sdk = "^1.3.0"
+click-prompt = "^0.6.2"
+pytest = "^8.3.5"
+cookiecutter = "^2.6.0"
+doppler-env = "^0.3.1"
+colorama = "^0.4.6"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+pfo = "pfo:cli"
