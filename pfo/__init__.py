@@ -34,6 +34,7 @@ network_check()
 from pfo.shared.commands import update_cli
 from pfo.github import repo
 from pfo.package import package
+from applications import app
 
 global metadata
 metadata = config.MetaData()
@@ -106,6 +107,7 @@ def cli(ctx, **params: dict) -> None:
 
 cli.add_command(package)
 cli.add_command(repo)
+cli.add_command(app)
 
 if __name__ == "__main__":
     cli()

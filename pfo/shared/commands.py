@@ -1,16 +1,34 @@
 import os
 import shutil
+import collections
 import subprocess
+import click
 import time
 
-import click
 from halo import Halo
 from config import MetaData
 
 metadata = MetaData()
 spinner = Halo(spinner="dots")
 
+class OrderedGroup(click.Group):
+    def __init__(self, name=None, commands=None, **attrs):
+        super(OrderedGroup, self).__init__(name, commands, **attrs)
+        #: the registered subcommands by their exported names.
+        self.commands = commands or collections.OrderedDict()
 
+    def list_commands(self, ctx):
+        return self.commands
+
+class OptionGroup(click.Option):
+    """Customizing the default click option"""
+
+    def list_options(self, ctx: click.Context):
+        """Sorts options in the specified order"""
+        # By default, click alphabetically sorts options
+        # This method will override that feature
+        return self.opts.keys()
+    
 class DefaultCommandGroup(click.Group):
     """allow a default command for a group"""
 
@@ -38,8 +56,6 @@ class DefaultCommandGroup(click.Group):
             # command did not parse, assume it is the default command
             args.insert(0, self.default_command)
             return super(DefaultCommandGroup, self).resolve_command(ctx, args)
-
-
 
 class RepoGroup(click.Group):
     def parse_args(self, ctx, args):
