@@ -27,35 +27,30 @@ def app(**params: dict) -> None:
         "Please enter the name of your CLI app",
         default="my_cli_app",
         show_default=True,
-        required=True,
         type=str
     )
     description: str = click.prompt(
         "Please enter a description for your CLI app",
         default="A PyFlowOps CLI application",
         show_default=True,
-        required=True,
         type=str
     )
     author: str = click.prompt(
         "Please enter the name of the author",
         default="PyFlowOps Team",
         show_default=True,
-        required=True,
         type=str
     )
     email: str = click.prompt(
         'Please enter the email of the author',
         default="email@notarealdomain.com",
         show_default=True,
-        required=True,
         type=str
     )
     github_org: str = click.prompt(
         "Please enter the name of the Github Organization",
         default="pyflowops",
         show_default=True,
-        required=True,
         type=str
     )
 

@@ -64,5 +64,8 @@ class DopplerAuth:
         else:
             spinner.stop()
             spinner.info(
-                "Doppler token cannot be found, please setup your Doppler account and export your PFO_DOPPLER_TOKEN..."
+                "Doppler token not loaded"
+            )
+            spinner.info(
+                "To setup Doppler, please setup your Doppler account and export your DOPPLER_TOKEN..."
             )
