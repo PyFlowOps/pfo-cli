@@ -35,7 +35,7 @@ class DopplerProject:
     def __init__(self):
         self.doppler = DopplerAuth().doppler
 
-    @Halo(text="Creating Doppler Project...", spinner="dots")
+    @Halo(text="Creating Doppler Project...\n", spinner="dots")
     def create_doppler_project(self, project_name: str) -> None:
         """This function creates a Doppler project."""
         if not project_name:
@@ -53,7 +53,7 @@ class DopplerProject:
             spinner.fail(f"Error creating the project: {e}")
             exit()
 
-    @Halo(text="Deleting Doppler Project...", spinner="dots")
+    @Halo(text="Deleting Doppler Project...\n", spinner="dots")
     def delete_doppler_project(self, project_name: str) -> None:
         """This function deletes a Doppler project."""
         if not project_name:

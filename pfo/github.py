@@ -11,8 +11,9 @@ from shared.commands import RepoGroup
 from config import MetaData
 from tools import assert_pfo_config_file, print_help_msg
 
-from pfo_doppler.config import DopplerConfig, check_doppler_config_exists
-from pfo_doppler.project import DopplerProject, check_doppler_project_exists
+import pfo_doppler
+#from pfo_doppler.config import DopplerConfig, check_doppler_config_exists
+#from pfo_doppler.project import DopplerProject, check_doppler_project_exists
 from pfo_github.functions import (
     get_current_repo_github_environments,
     get_current_repo_name,
@@ -31,6 +32,7 @@ spinner = Halo(text_color="blue", spinner="dots")
 
 
 @click.group(cls=RepoGroup, invoke_without_command=True)
+@click.pass_context # Recommended to add for accessing context
 @optgroup.group(f"Github", help=f"Github Repo Operations.")
 @optgroup.option(
     "--init",
@@ -50,11 +52,18 @@ spinner = Halo(text_color="blue", spinner="dots")
     is_flag=True,
     help=f"This allows for user to run tests.",
 )
-def repo(**params: dict) -> None:
+def repo(ctx: click.Context, **params: dict) -> None:
     """This is the pfo Github repo builder, maintenance tool.
 
     This section will begin the process of creating a new github repo, and helping maintain it.
     """
+    if not pfo_doppler._doppler:
+        if not os.environ.get("GH_TOKEN"):
+            spinner.fail(
+                "If not using Doppler, you must set the GH_TOKEN environment variable to use this command."
+            )
+            exit()
+
     if params["init"]:
         # Let's get the owner of the repo from the user
         _accepted_owners = ["generic", "dev", "infra", "sre", "data"]
@@ -94,28 +103,30 @@ def repo(**params: dict) -> None:
 
         if _value.lower() == "y":
             # Let's ensure that the Doppler project for the owner exists
-            if not check_doppler_project_exists(
-                project_name=_pn
-            ):  # This will fail if the project does not exists
-                DopplerProject().create_doppler_project(project_name=_pn)
+            if pfo_doppler._doppler:
+                if not pfo_doppler.check_doppler_project_exists(
+                    project_name=_pn
+                ):  # This will fail if the project does not exists
+                    pfo_doppler.dop_project.create_doppler_project(project_name=_pn)
 
             build_repo(_final_repo_name)  # This will create the repo in GitHub
 
             # Let's ensure that the Doppler config doesn't already exist in the project
             # For the config name, we will use the repo name NOT the _final_repo_name -- the config
             # name will be the same as the repo name, but with the owner removed
-            if not check_doppler_config_exists(
-                project_name=_pn, config_name=_repo_name
-            ):
-                DopplerConfig().create_doppler_configs(
-                    repo_name=_final_repo_name
-                )  # This will create the config in the project
+            if pfo_doppler._doppler:
+                if not pfo_doppler.check_doppler_config_exists(
+                    project_name=_pn, config_name=_repo_name
+                ):
+                    pfo_doppler.dop_config.create_doppler_configs(
+                        repo_name=_final_repo_name
+                    )  # This will create the config in the project
 
-            spinner.succeed("Repo Created!")
-            exit()  # To be removed later when functions are working
-        else:
-            spinner.info("Initial Repo creation aborted.")
-            exit()
+                spinner.succeed("Repo Created!")
+                ctx.exit(0)
+            else:
+                spinner.info("Initial Repo creation aborted.")
+                ctx.exit(0)
 
     if params["set_github_environments"]:
         spinner.start("Setting up GitHub Environments...")
@@ -127,18 +138,18 @@ def repo(**params: dict) -> None:
         if _envs:
             spinner.fail(f"Environments already exist in the repo: {', '.join(_envs)}")
             spinner.info("Please remove the environments before continuing.")
-            exit()
+            ctx.exit(0)
 
         set_current_repo_github_environments(obj=get_current_repo_name())
         spinner.succeed("GitHub Environments Success!")
-        exit()
+        ctx.exit(0)
 
     if params["test"]:
         print("### UNDER CONSTRUCTION ###")
         print("This is the test section, add your code here to test the repo.")
-        exit()
+        ctx.exit(0)
 
-    print_help_msg(repo)
+    click.echo(ctx.get_help())
 
     # This checks for a .pfo.json config file - analysis still needed to ensure this is a good function to have
     # if assert_pfo_config_file():

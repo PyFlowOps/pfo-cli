@@ -70,7 +70,7 @@ class DopplerConfig:
     def _envs(self) -> list:
         return ["dev", "stg", "prd"]
 
-    @Halo(text="Creating Doppler Config...", spinner="dots")
+    @Halo(text="Creating Doppler Config...\n", spinner="dots")
     def create_doppler_configs(self, repo_name) -> None:
         """This function creates a Doppler config in a project.
 

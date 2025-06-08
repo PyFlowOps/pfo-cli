@@ -16,12 +16,16 @@ import time
 import git
 from halo import Halo
 from config import MetaData
-from pfo_doppler.project import DopplerProject
-from tools import pfo_log
+from pfo_doppler import _doppler
+
+# In the pfo_doppler package, the __init__ module has an attribute named _doppler: bool 
+# If _doppler is set to true, then we will import the dop_project module.
+if _doppler:
+    from pfo_doppler import dop_project
 
 metadata = MetaData()
 config_data = metadata.config_data
-mnd_dpp = DopplerProject()
+
 spinner = Halo(text_color="blue", spinner="dots")
 
 
@@ -31,11 +35,14 @@ def get_gh_token() -> str:
     Raises:
         Exception: If the Doppler token is not set in the environment.
     """
-    results = mnd_dpp.doppler.secrets.get(
-        project="pfo", config="cli", name="PFO_GH_ACCESS_TOKEN"
-    )
-    gh_token = vars(results)["value"]["raw"].strip()
-
+    if _doppler:
+        results = dop_project.doppler.secrets.get(
+            project="pfo", config="cli", name="GH_TOKEN"
+        )
+        gh_token = vars(results)["value"]["raw"].strip()
+    else:
+        gh_token = os.environ.get("GH_TOKEN", None)
+    
     return gh_token
 
 
@@ -96,13 +103,10 @@ def _get_github_teams() -> list[dict]:
 
 
 def _get_gcp_project_name(owner: str) -> str:
-    if owner == "sre" or owner == "analytics":
-        return "mnscpd-internal"
-
     if owner == "dev":
-        return "mnscpd-core"
+        return None
 
-    if owner == "qa" or owner == "generic":
+    if owner == "generic":
         return None
 
     return None
@@ -135,7 +139,6 @@ def create_repo(repo_name: str) -> None:
 
 
 # Let's offer a function to create the environments for the repo in GitHub
-### REFACTOR -- The GCP Project may not always be CORE - so, adding a choice in the repo init function is needed.
 def set_github_environments_for_new_repo(obj: str) -> None:
     """This function creates the GitHub environments for the repo.
 

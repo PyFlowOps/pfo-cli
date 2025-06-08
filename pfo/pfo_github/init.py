@@ -7,17 +7,15 @@ This is so that repos can be created with Github Actions, pipelines, linting, an
 This tools will create the repo, the environments for GCP integrations and a subsequent, respective project in Doppler.
 """
 
-import json
+#import json
 import os
-import shutil
-import subprocess
+#import shutil
+#import subprocess
 import time
 
-import git
+#import git
 from halo import Halo
 from config import MetaData
-from pfo_doppler.config import DopplerConfig
-from pfo_doppler.project import DopplerProject
 from pfo_github.functions import (
     create_repo,
     get_gh_token,
@@ -25,14 +23,12 @@ from pfo_github.functions import (
     set_github_environments_for_new_repo,
     set_main_branch,
 )
-from tools import pfo_log
 
 metadata = MetaData()
 config_data = metadata.config_data
 spinner = Halo(text_color="blue", spinner="dots")
 
-
-@Halo(text="Building your repo...", spinner="dots")
+@Halo(text="Building your repo...\n", spinner="dots")
 def build_repo(repo_name: str) -> None:
     """This function builds the repo based on the PyFlowOps template."""
     gh_token = get_gh_token()  # Get the Github token from Doppler

@@ -5,16 +5,15 @@
 # mns can not be copied and/or distributed without the express
 # permission of PyFlowOps, Inc.
 #
-
 __name__ = "pfo"
 __author__ = "Philip De Lorenzo"
 
 import collections
 import os
 import shutil
+import sys
 #import stat
 #import subprocess
-import sys
 #import time
 
 import click
@@ -25,7 +24,7 @@ sys.path.append(_imp)
 
 from halo import Halo
 from pfo import config
-from pfo.tools import docstrings, mac_only, network_check, print_help_msg
+from pfo.tools import docstrings, mac_only, network_check
 
 # We want to ensure a network connection before any of the Doppler functions run
 # The following imports require a network connection - this is for better messaging
@@ -41,7 +40,7 @@ metadata = config.MetaData()
 spinner = Halo(text_color="blue", spinner="dots")
 
 # We want to ensure that the pfo-cli tool has all of the required directories and files
-@Halo(text="Loading database, directories, and files...", spinner="dots")
+@Halo(text="Loading database, directories, and files...\n", spinner="dots")
 def check_for_required_directories_and_files():
     if not os.path.exists(metadata.rootdir):
         os.makedirs(metadata.rootdir)
