@@ -47,6 +47,9 @@ jobs:
   call-versions:
     needs: [call-unit-tests]
     uses: ./.github/workflows/dry-versions.yml
+    secrets:
+      # This is automatically provided by GitHub Actions, so we don't need to specify it in the workflow
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
 
   test-versions:
     needs: [call-unit-tests, call-versions]

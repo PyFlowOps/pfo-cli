@@ -15,6 +15,14 @@ on:
         description: 'The latest version (Draft Release)'
         value: ${{ jobs.versions.outputs.draft_version }}
 
+    secrets:
+      GH_TOKEN:
+        description: 'GitHub Token for accessing the repository'
+        required: true
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
 jobs:
   versions:
     name: Project Versions
