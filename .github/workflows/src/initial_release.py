@@ -46,7 +46,7 @@ def create_initial_release():
         "gh",
         "release",
         "create",
-        "v0.0.0",
+        "v0.0.1",
         "--title",
         "Initial Release",
         "--notes",
