@@ -197,13 +197,13 @@ def get_toml_version() -> str:
         pyproject_data = pytoml.load(f)
 
     assert (
-        pyproject_data["project"]["version"] != None
+        pyproject_data["tool"]["poetry"]["version"] != None
     ), "The version in pyproject.toml should not be None."
     assert (
-        pyproject_data["project"]["version"] != ""
+        pyproject_data["tool"]["poetry"]["version"] != ""
     ), "The version in pyproject.toml should not be empty."
 
-    return pyproject_data["project"]["version"]
+    return pyproject_data["tool"]["poetry"]["version"]
 
 
 def get_draft_release_version(obj: list[dict]) -> str:
