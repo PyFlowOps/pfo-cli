@@ -22,7 +22,7 @@ jobs:
 
       - name: Initial Release (Lone Job)
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           echo "Running initial release job..."
           python ${{ github.workspace }}/.github/workflows/src/initial_release.py

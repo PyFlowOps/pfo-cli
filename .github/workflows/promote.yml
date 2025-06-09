@@ -25,7 +25,7 @@ jobs:
       - name: Promote Pre-Release
         if: inputs.release-type == 'pre-release'
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           echo "Running promote job..."
           python ${{ github.workspace }}/.github/workflows/src/promote.py --prerelease
@@ -34,7 +34,7 @@ jobs:
       - name: Promote Release
         if: inputs.release-type == 'release'
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           echo "Running promote job..."
           python ${{ github.workspace }}/.github/workflows/src/promote.py --release

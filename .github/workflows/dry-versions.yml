@@ -55,7 +55,7 @@ jobs:
       - name: Current Release Version
         id: latest-version
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           #!/bin/bash
           echo "Getting latest release version"
@@ -67,7 +67,7 @@ jobs:
       - name: Draft Release Version
         id: draft-version
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           #!/bin/bash
           echo "Getting draft release version"
