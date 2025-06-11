@@ -151,8 +151,8 @@ def promote_release():
         "edit",
         _prerelease["tagName"],
         "--draft=false",
-        "--prerelease=true",
-        "--latest=false",
+        "--prerelease=false",
+        "--latest=true",
     ]
     print("[INFO] - Promoting pre-release to full release")
     r = subprocess.run(_cmd, capture_output=True, text=True)
