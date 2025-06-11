@@ -11,30 +11,30 @@ class MetaData:
     _authors = [
         "Philip De Lorenzo",
     ]
-    _company = "PyFlowOps"
-    _contributors = ["Philip De Lorenzo"]
-    _organization = "PyFlowOps"
-    _github_org = "pyflowops"
-    _github_org_url = f"https://github.com/{_github_org}"
-    _template_repo = "base-repo-template"
+    _company: str = "PyFlowOps"
+    _contributors: list = ["Philip De Lorenzo"]
+    _organization: str = "PyFlowOps"
+    _github_org: str = "pyflowops"
+    _github_org_url: str = f"https://github.com/{_github_org}"
+    _template_repo: str = "base-repo-template"
 
     def __init__(self):
-        self.config_path = (
+        self.config_path: os.path.abspath = (
             self._config_path()
         )  # The root folder of the config file (config.ini)
-        self.config_file = (
+        self.config_file: str = (
             self._config_file()
         )  # The path to the config file (config.ini)
-        self.config_data = (
+        self.config_data: dict = (
             self._config_data()
         )  # This is a dictionary of the config file (config.ini)
-        self.context_root = (
+        self.context_root: os.path.abspath = (
             self._context_root()
         )  # Set the directory in context of THIS file.
         self.rootdir: os.path.abspath = (
             self._cli_root_directory()
         )  # Set the root directory for the CLI (where the .env file is located)
-        self.cli_env = os.path.join(self.rootdir, ".env")
+        self.cli_env: os.path.abspath = os.path.join(self.rootdir, ".env")
         self.shell_scripts_directory: os.path.abspath = self._shell_scripts_directory()
         self.pfo_json_file: str = "pfo.json"  # The PyFlowOps JSON file - configuration for the package to be tracked
         self.base_version: str = (
