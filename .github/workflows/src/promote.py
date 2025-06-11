@@ -130,9 +130,9 @@ def promote_draft():
         "--latest=false",
     ]
     print("[INFO] - Promoting draft release to pre-release")
-    # r = subprocess.run(_cmd, capture_output=True, text=True)
-    # if r.returncode != 0:
-    #    raise Exception(f"Error: {r.stderr}")
+    r = subprocess.run(_cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Exception(f"Error: {r.stderr}")
 
 
 def promote_release():
@@ -155,9 +155,9 @@ def promote_release():
         "--latest=false",
     ]
     print("[INFO] - Promoting pre-release to full release")
-    # r = subprocess.run(_cmd, capture_output=True, text=True)
-    # if r.returncode != 0:
-    #    raise Exception(f"Error: {r.stderr}")
+    r = subprocess.run(_cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+       raise Exception(f"Error: {r.stderr}")
 
 
 if __name__ == "__main__":
