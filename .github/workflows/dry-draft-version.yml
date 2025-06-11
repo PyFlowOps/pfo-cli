@@ -7,7 +7,7 @@ on:
 
 jobs:
   versions:
-    name: TOML Version
+    name: Package Version (Local)
     runs-on: 'ubuntu-latest'
     outputs:
       draft_version: ${{ steps.draft-version.outputs.draft_version }}

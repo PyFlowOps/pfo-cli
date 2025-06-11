@@ -42,9 +42,6 @@ def get_all_releases() -> list[dict]:
     if type(_data) != list:
         raise Exception("[ERROR] - Expected a list of releases")
 
-    if len(_data) > 1:
-        raise Exception("[ERROR] - More than one draft release found")
-
     return _data
 
 
