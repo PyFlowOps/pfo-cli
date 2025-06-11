@@ -14,5 +14,3 @@ if os.environ.get("DOPPLER_TOKEN"):
     dop_config = DopplerConfig()
     dop_project = DopplerProject()
     dop_secrets = DopplerSecrets()
-
-print(f"REMOVE ME: _doppler = {_doppler}")
