@@ -313,14 +313,13 @@ def get_latest_cli_release_version() -> str:
                 "release",
                 "view",
                 "--repo",
-                "pyflowops/pfo-cli",
+                "PyFlowOps/pfo-cli",
                 "--json",
                 "tagName",
             ],
             capture_output=True,
         )
     except subprocess.CalledProcessError:
-        spinner.stop()
         spinner.fail(
             "This directory is not a GitHub repo, please run this command from within a GitHub repo."
         )
@@ -329,11 +328,9 @@ def get_latest_cli_release_version() -> str:
     _ret = res.stdout.decode("utf-8")
 
     if ("release not found" in _ret) or (_ret == ""):
-        spinner.stop()
         spinner.warn("No releases found for pfo-cli.")
         exit()
 
-    exit()
     return json.loads(res.stdout.decode("utf-8"))["tagName"].lstrip(
         "v"
     )  # This will return the latest release versions
