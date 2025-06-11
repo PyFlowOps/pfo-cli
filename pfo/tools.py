@@ -91,11 +91,6 @@ def assert_pfo_config_file() -> bool:
 
     If the directories are not present, then they will be created.
 
-    Args:
-        None
-
-    Returns:
-        None
     """
     if "pfo.json" not in os.listdir(os.getcwd()):
         return False

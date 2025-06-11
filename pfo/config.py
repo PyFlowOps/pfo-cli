@@ -38,7 +38,7 @@ class MetaData:
         self.shell_scripts_directory: os.path.abspath = self._shell_scripts_directory()
         self.pfo_json_file: str = "pfo.json"  # The PyFlowOps JSON file - configuration for the package to be tracked
         self.base_version: str = (
-            "0.1.0"  # The base version the package being tracked by PyFlowOps
+            "0.0.1"  # The base version the package being tracked by PyFlowOps
         )
         self.template_repo_url: str = (
             f"{self._github_org_url}/{self._template_repo}.git"
