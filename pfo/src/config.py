@@ -51,28 +51,28 @@ class MetaData:
         """Returns the string representation of the MetaData class."""
         return f"MetaData --> <{self._name}>"
 
-    def _shell_scripts_directory(self) -> os.path.abspath:
+    def _shell_scripts_directory(self) -> str:
         """Returns the path to the shell scripts directory."""
         return os.path.abspath(os.path.join(self.context_root, "scripts"))
 
-    def _context_root(self) -> os.path.abspath:
+    def _context_root(self) -> str:
         """Returns the path to the root directory of the CLI."""
         return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
-    def _cli_root_directory(self) -> os.path.abspath:
+    def _cli_root_directory(self) -> str:
         """Returns the path to the root directory of the CLI."""
-        if os.getenv("HOME"):
-            return os.path.abspath(os.path.join(os.getenv("HOME"), ".pfo"))
+        if os.environ.get("HOME"):
+            return os.path.abspath(os.path.join(os.environ.get("HOME"), ".pfo"))
         else:
-            return os.path.abspath(os.path.join("~", ".pfo"))
+            return os.path.abspath(os.path.expanduser(os.path.join("~", ".pfo")))
 
-    def _local_github_repo_template(self) -> os.path.abspath:
+    def _local_github_repo_template(self) -> str:
         """Returns the path to the github repo local template."""
         return os.path.abspath(
             os.path.join(self.rootdir, ".templates", self._template_repo)
         )
 
-    def _config_path(self) -> os.path.abspath:
+    def _config_path(self) -> str:
         """Returns the path to the config file."""
         return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 

@@ -10,7 +10,7 @@ from typing import Any
 import click
 import git
 from halo import Halo
-from config import MetaData
+from src.config import MetaData
 
 metadata = MetaData()
 
