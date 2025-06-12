@@ -1,7 +1,7 @@
-name: Task
-description: Write up a task.
-title: "[TASK]: "
-labels: ["task", "triage"]
+name: SubTask
+description: Write up a subtask.
+title: "[SUBTASK]: "
+labels: ["subtask", "triage"]
 #projects: ["philipdelorenzo/2"]
 assignees:
   - philipdelorenzo
@@ -15,21 +15,15 @@ body:
         - High
         - Medium
         - Low
+      default: 3
+
     validations:
       required: true
 
   - type: dropdown
-    id: epic
-    attributes:
-      label: Epic/Parent Issue
-      description: Select the parent epic or enter issue number below
-      options:
-        - "Other (specify below)"
-      
-  - type: dropdown
     id: category
     attributes:
-      label: Task Category
+      label: SubTask Category
       description: What type of task is this?
       options:
         - Implementation
@@ -47,7 +41,7 @@ body:
     id: descrtiption
     attributes:
       label: Description
-      description: What is the task?
+      description: What is the subtask?
       placeholder: ex. We need to do something.
     validations:
       required: true
