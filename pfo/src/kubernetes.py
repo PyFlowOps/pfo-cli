@@ -5,6 +5,8 @@ offers a method of standing up a Kind cluster for local development and testing 
 import click
 import gnupg
 import os
+import json
+import subprocess
 
 from typing import Any
 from click_option_group import optgroup
@@ -63,8 +65,20 @@ def k8s(**params: dict) -> None:
 
     This section will begin the process of creating a new package, updating the package (version), or releasing the package.
     """
+    _pubkey = os.path.join(os.path.expanduser("~"), ".pfo", "keys", "pfo.pub")
+    _privkey = os.path.join(os.path.expanduser("~"), ".pfo", "keys", "pfo")
+    
     if params.get("create", False):
-        create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
+        if not os.path.exists(_pubkey) or not os.path.exists(_privkey):
+            create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
+        
+        _environment = click.prompt(
+            "Select the environment for the Kind cluster",
+            type=click.Choice(["local", "dev", "stg", "prd"], case_sensitive=False),
+            default="local"
+        )
+
+        create_kind_cluster(env=_environment) # Create the Kind cluster for local development
         exit()
 
     if params.get("delete", False):
@@ -74,10 +88,87 @@ def k8s(**params: dict) -> None:
         print(params)
 
     if params.get("update", False):
-        print(params)
+        cluster = Cluster(env="local")
+        cluster.update()
+        exit()
 
     if not any(params.values()):
         print_help_msg(k8s)
+
+
+class Cluster():
+    """Class for managing Kubernetes clusters (Kind)."""
+    def __init__(self, env: str = "local") -> None:
+        self.env: str = env
+        self.temp: str = "/tmp/.pfo"
+        self._k8s_dir: str = os.path.join(metadata.rootdir, "k8s")
+        self._kind_config: str = os.path.join(self._k8s_dir, "kind-config.yaml")
+
+    @Halo(text="Creating Kind Cluster...\n", spinner="dots")
+    def create(self) -> None:
+        """Creates the Kubernetes cluster."""
+        self.__ccluster() # Create the Kind cluster
+        self.__cluster_info() # Get the Kind cluster info
+        self.update() # Update the Kind cluster
+        self.__set_context() # Set the Kind cluster context
+
+    def delete(self) -> None:
+        """Deletes the Kubernetes cluster."""
+        print("Deleting the Kubernetes cluster...")
+
+    @Halo(text="Updating Kind Cluster...\n", spinner="dots")
+    def update(self) -> None:
+        """Updates the Kubernetes cluster."""
+        _owner = self.__repo_owner()
+        if not _owner:
+            spinner.fail("Cannot continue updating the Kubernetes cluster.")
+            return
+        else:
+            Halo(text_color="blue", spinner="dots").info(f"Getting repository data from GitHub for Org: {_owner}")
+            _repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
+            print(_repos)
+
+    def info(self) -> None:
+        """Displays information about the Kubernetes cluster."""
+        print("Displaying information about the Kubernetes cluster...")
+
+    def __ccluster(self) -> None:
+        res = subprocess.run(["kind", "create", "cluster", "--config", self._kind_config, "--name", self.env], check=True)
+        if res.returncode == 0:
+            spinner.succeed("Kind cluster created successfully!")
+        else:
+            spinner.fail("Failed to create Kind cluster.")
+
+    def __cluster_info(self) -> None:
+        res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-{self.env}"], check=True)
+        if res.returncode == 0:
+            spinner.succeed("Kind cluster info retrieved successfully!")
+        else:
+            spinner.fail("Failed to retrieve Kind cluster info.")
+        
+    def __set_context(self) -> None:
+        res = subprocess.run(["kubectl", "config", "use-context", "--current", f"--namespace={self.env}"], check=True)
+        if res.returncode == 0:
+            spinner.succeed("Kind cluster context set successfully!")
+        else:
+            spinner.fail("Failed to set Kind cluster context.")
+        
+    def __repo_owner(self) -> str|None:
+        try:
+            res = subprocess.run(["gh", "repo", "view", "--json", "owner"], capture_output=True, text=True, check=True).stdout # This is a json string output
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to get repo owner: {e}")
+        
+        return json.loads(res)["owner"]["login"] if res else None
+    
+    def __current_repo_list(self, owner: str) -> list|None:
+        res = subprocess.run(["gh", "repo", "list", owner, "--json", "name"], capture_output=True, text=True, check=True)
+        if res.returncode == 0:
+            repos = [i["name"] for i in json.loads(res.stdout)] #json.loads(res.stdout)
+        else:
+            spinner.fail("Failed to get repos for the org.")
+        
+        return repos if repos else None
 
 
 @Halo(text="Creating Encryption Keys...\n", spinner="dots")
@@ -132,3 +223,17 @@ def create_enc_directory():
     _keys = os.path.join(_home, "keys")
     if not os.path.exists(_keys):
         os.makedirs(_keys)
+
+@Halo(text="Creating Kind Cluster...\n", spinner="dots")
+def create_kind_cluster(env: str = "local") -> None:
+    """Creates a Kind cluster for local development."""
+    # Let's run our scripts that automate the creation of the Kind cluster
+    _k8s_dir = os.path.join(metadata.rootdir, "k8s")
+    _kind_config = os.path.join(_k8s_dir, "kind-config.yaml")
+    _create_script = os.path.join(_k8s_dir, "create_cluster.sh")
+
+    try:
+        subprocess.run(["bash", "-l", _create_script, env], check=True)
+        spinner.succeed("Kind cluster created successfully!")
+    except subprocess.CalledProcessError as e:
+        spinner.fail(f"Failed to create Kind cluster: {e}")

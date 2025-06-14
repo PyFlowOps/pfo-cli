@@ -19,23 +19,23 @@ class MetaData:
     _template_repo: str = "base-repo-template"
 
     def __init__(self):
-        self.config_path: os.path.abspath = (
+        self.config_path: str = (
             self._config_path()
         )  # The root folder of the config file (config.ini)
         self.config_file: str = (
             self._config_file()
         )  # The path to the config file (config.ini)
-        self.config_data: dict = (
+        self.config_data: configparser.ConfigParser = (
             self._config_data()
         )  # This is a dictionary of the config file (config.ini)
-        self.context_root: os.path.abspath = (
+        self.context_root: str = (
             self._context_root()
         )  # Set the directory in context of THIS file.
-        self.rootdir: os.path.abspath = (
+        self.rootdir: str = (
             self._cli_root_directory()
-        )  # Set the root directory for the CLI (where the .env file is located)
-        self.cli_env: os.path.abspath = os.path.join(self.rootdir, ".env")
-        self.shell_scripts_directory: os.path.abspath = self._shell_scripts_directory()
+        )  # Set the root directory for the CLI -- MAIN CLI CONFIG DIR -- ~/.pfo
+        self.cli_env: str = os.path.join(self.rootdir, ".env")
+        self.shell_scripts_directory: str = self._shell_scripts_directory()
         self.pfo_json_file: str = "pfo.json"  # The PyFlowOps JSON file - configuration for the package to be tracked
         self.base_version: str = (
             "0.0.1"  # The base version the package being tracked by PyFlowOps
@@ -43,7 +43,7 @@ class MetaData:
         self.template_repo_url: str = (
             f"{self._github_org_url}/{self._template_repo}.git"
         )
-        self.local_github_repo_template: os.path.abspath = (
+        self.local_github_repo_template: str = (
             self._local_github_repo_template()
         )
 
@@ -61,10 +61,7 @@ class MetaData:
 
     def _cli_root_directory(self) -> str:
         """Returns the path to the root directory of the CLI."""
-        if os.environ.get("HOME"):
-            return os.path.abspath(os.path.join(os.environ.get("HOME"), ".pfo"))
-        else:
-            return os.path.abspath(os.path.expanduser(os.path.join("~", ".pfo")))
+        return os.path.abspath(os.path.join(os.environ.get("HOME", "~"), ".pfo"))
 
     def _local_github_repo_template(self) -> str:
         """Returns the path to the github repo local template."""
@@ -80,7 +77,7 @@ class MetaData:
         """Returns the path to the config file."""
         return os.path.join(self.config_path, "config.ini")
 
-    def _config_data(self) -> dict:
+    def _config_data(self) -> configparser.ConfigParser:
         """Returns the config data from the config file."""
         data = configparser.ConfigParser()
         data.read(self.config_file)
