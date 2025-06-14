@@ -6,7 +6,9 @@ import click
 import gnupg
 import os
 import json
+import time
 import subprocess
+import base64
 
 from typing import Any
 from click_option_group import optgroup
@@ -103,6 +105,8 @@ class Cluster():
         self.temp: str = "/tmp/.pfo"
         self._k8s_dir: str = os.path.join(metadata.rootdir, "k8s")
         self._kind_config: str = os.path.join(self._k8s_dir, "kind-config.yaml")
+        self._repos_with_pfo: dict[str, Any] = {} # Dictionary to hold repos with pfo.json configs
+        self.epoch_tag: str = str(time.time()).split(".")[0] # Epoch timestamp for tagging resources
 
     @Halo(text="Creating Kind Cluster...\n", spinner="dots")
     def create(self) -> None:
@@ -119,14 +123,33 @@ class Cluster():
     @Halo(text="Updating Kind Cluster...\n", spinner="dots")
     def update(self) -> None:
         """Updates the Kubernetes cluster."""
-        _owner = self.__repo_owner()
+        _owner = self.repo_owner
         if not _owner:
             spinner.fail("Cannot continue updating the Kubernetes cluster.")
             return
-        else:
-            Halo(text_color="blue", spinner="dots").info(f"Getting repository data from GitHub for Org: {_owner}")
-            _repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
-            print(_repos)
+        
+        Halo(text_color="blue", spinner="dots").info(f"Getting repository data from GitHub for Org: {_owner}")
+        _repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
+        # Let's get any repo in the Org that has a pfo.json config file in the root directory
+        if not _repos:
+            spinner.fail("No repositories found for the organization.")
+            return
+
+        # Now let's iterate through the repos and get the pfo.json config file if it exists
+        # Will we augment the self._repos_with_pfo dictionary with the repo name as the key and the pfo.json content as the value
+        for repo in _repos:
+            self.__get_pfo_configs_for_repo(owner=_owner, repo=repo)
+
+        # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
+        # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
+        # If true, we will need to get the docker image of the microservice from the "docker" key in the pfo.json config file.
+        for repo, pfo_config in self._repos_with_pfo.items():
+            if pfo_config.get("k8s", {}).get("deploy", False):
+                # We need to get the artifact (docker image) for this project and add it to the manifest(s)
+                pass # TODO: Implement the logic to get the docker image and apply the manifests to the Kind cluster
+
+        spinner.succeed("Kind cluster updated successfully!")
+
 
     def info(self) -> None:
         """Displays information about the Kubernetes cluster."""
@@ -152,8 +175,9 @@ class Cluster():
             spinner.succeed("Kind cluster context set successfully!")
         else:
             spinner.fail("Failed to set Kind cluster context.")
-        
-    def __repo_owner(self) -> str|None:
+    
+    @property
+    def repo_owner(self) -> str|None:
         try:
             res = subprocess.run(["gh", "repo", "view", "--json", "owner"], capture_output=True, text=True, check=True).stdout # This is a json string output
         except subprocess.CalledProcessError as e:
@@ -169,6 +193,16 @@ class Cluster():
             spinner.fail("Failed to get repos for the org.")
         
         return repos if repos else None
+    
+    def __get_pfo_configs_for_repo(self, owner: str, repo: str) -> dict|None:
+        try:
+            res = subprocess.run(["gh", "api", f"/repos/{owner}/{repo}/contents/pfo.json"], capture_output=True, text=True, check=True)
+            if res.returncode == 0:
+                b64_content = json.loads(res.stdout)["content"]
+                pfo_content = json.loads(base64.b64decode(b64_content).decode("utf-8"))
+                self._repos_with_pfo.update({repo: pfo_content})
+        except subprocess.CalledProcessError:
+            pass
 
 
 @Halo(text="Creating Encryption Keys...\n", spinner="dots")
