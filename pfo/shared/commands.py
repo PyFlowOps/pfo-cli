@@ -6,7 +6,7 @@ import click
 import time
 
 from halo import Halo
-from config import MetaData
+from src.config import MetaData
 
 metadata = MetaData()
 spinner = Halo(spinner="dots")

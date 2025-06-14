@@ -5,7 +5,7 @@ from halo import Halo
 from click_option_group import optgroup
 from cookiecutter.main import cookiecutter
 from pfo.shared.commands import OrderedGroup
-from tools import print_help_msg
+from src.tools import print_help_msg
 
 
 spinner = Halo(text_color="blue", spinner="dots")
