@@ -11,6 +11,7 @@ import subprocess
 import base64
 
 from typing import Any
+from git import Repo
 from click_option_group import optgroup
 from halo import Halo
 
@@ -145,8 +146,18 @@ class Cluster():
         # If true, we will need to get the docker image of the microservice from the "docker" key in the pfo.json config file.
         for repo, pfo_config in self._repos_with_pfo.items():
             if pfo_config.get("k8s", {}).get("deploy", False):
+                repo_url = f"https://github.com/{_owner}/{repo}.git"
+                local_path = os.path.join(self.temp, repo)
+
+                try:
+                    repo = Repo.clone_from(repo_url, local_path)
+                except Exception as e:
+                    spinner.fail(f"Error: {e}")
+
+                # Now we need to get the docker image from the repo - it should now be cloned to /tmp/.pfo/<repo>
                 # We need to get the artifact (docker image) for this project and add it to the manifest(s)
                 pass # TODO: Implement the logic to get the docker image and apply the manifests to the Kind cluster
+                
 
         spinner.succeed("Kind cluster updated successfully!")
 
