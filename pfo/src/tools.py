@@ -10,7 +10,7 @@ from typing import Any
 import click
 import git
 from halo import Halo
-from config import MetaData
+from src.config import MetaData
 
 metadata = MetaData()
 
@@ -162,6 +162,13 @@ def register() -> None:
     _data["registrant"] = {}
     _data["registrant"]["user"] = _user_name
     _data["registrant"]["email"] = _user_email
+
+    # Let's add the kubernetes data to the registration
+    _data["k8s"] = {}
+    _data["k8s"]["name"] = _name
+    _data["k8s"]["labels"] = {}
+    _data["k8s"]["labels"]["app.kubernetes.io/name"] = _name
+    _data["k8s"]["deploy"] = False  # Default to not deploy
 
     _json_data = json.dumps(_data, indent=2)
     with open(_pfo_file, "w") as file:

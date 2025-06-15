@@ -9,12 +9,11 @@ import click
 from click_option_group import optgroup
 from halo import Halo
 from shared.commands import DefaultCommandGroup
-from config import MetaData
-from tools import (
+from src.config import MetaData
+from src.tools import (
     assert_pfo_config_file,
     bump_version,
     deregister,
-    pfo_log,
     print_help_msg,
     register,
 )

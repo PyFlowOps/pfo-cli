@@ -1,7 +1,6 @@
 import os
 import time
 
-from dopplersdk import DopplerSDK
 from halo import Halo
 from pfo_doppler import DopplerAuth
 
