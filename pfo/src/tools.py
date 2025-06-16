@@ -164,13 +164,41 @@ def register() -> None:
     _data["registrant"]["email"] = _user_email
 
     # We need to add a docker section to the registration
-    _base = "docker"
     _data["docker"] = {}
-    _data["docker"]["base_path"] = _base
-    _data["docker"]["image"] = f"{_name}"
-    _data["docker"]["path"] = f"{_base}/{_name}"
-    _data["docker"]["dockerfile"] = "Dockerfile"
 
+    # This will create a dict with the folder name as the key and the path to the dockerfile as the value
+    # Example: Within the /docker folder of the project, there are two folders: app1 and app2
+    # This will create a dict like this:
+    # {
+    #   "app1": {
+    #       "base_path": "docker",
+    #       "image": "app1",
+    #       "repo_path": "docker/app1",
+    #       "dockerfile": "Dockerfile"
+    #   },
+    #   "app2": {
+    #       "base_path": "docker",
+    #       "image": "app2",
+    #       "repo_path": "docker/app2",
+    #       "dockerfile": "Dockerfile"
+    #   }
+    # }
+    # If the docker folder does not exist, it will not add anything to the docker section. docker: {}
+    if os.path.exists(os.path.join(_path, "docker")):
+        for _name in os.listdir(os.path.join(_path, "docker")):
+            if os.path.isdir(os.path.join(_path, "docker", _name)):
+                _data["docker"][_name] = {}
+                _data["docker"][_name]["base_path"] = "docker"
+                _data["docker"][_name]["image"] = f"{_name}"
+                _data["docker"][_name]["repo_path"] = f"docker/{_name}"
+
+                if os.path.exists(os.path.join(_path, "docker", _name, "Dockerfile")):
+                    _data["docker"][_name]["dockerfile"] = "Dockerfile"
+                else:
+                    spinner.warn(
+                        f"No Dockerfile found in docker/{_name}, defaulting to 'Dockerfile' for the dockerfile name."
+                    )
+                    _data["docker"][_name]["dockerfile"] = None
 
     # Let's add the kubernetes data to the registration
     _data["k8s"] = {}

@@ -7,6 +7,7 @@ import gnupg
 import os
 import json
 import time
+import docker
 import subprocess
 import base64
 
@@ -133,11 +134,12 @@ class Cluster():
         _repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
         # Let's get any repo in the Org that has a pfo.json config file in the root directory
         if not _repos:
-            spinner.fail("No repositories found for the organization.")
+            spinner.info("No repositories found for the organization.")
             return
 
-        # Now let's iterate through the repos and get the pfo.json config file if it exists
         # Will we augment the self._repos_with_pfo dictionary with the repo name as the key and the pfo.json content as the value
+        # self._repos_with_pfo data population; {repo_name: pfo.json content}
+        # Now let's iterate through the repos and get the pfo.json config file if it exists
         for repo in _repos:
             self.__get_pfo_configs_for_repo(owner=_owner, repo=repo)
 
@@ -145,19 +147,41 @@ class Cluster():
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
         # If true, we will need to get the docker image of the microservice from the "docker" key in the pfo.json config file.
         for repo, pfo_config in self._repos_with_pfo.items():
-            if pfo_config.get("k8s", {}).get("deploy", False):
-                repo_url = f"https://github.com/{_owner}/{repo}.git"
-                local_path = os.path.join(self.temp, repo)
-
-                try:
-                    repo = Repo.clone_from(repo_url, local_path)
-                except Exception as e:
-                    spinner.fail(f"Error: {e}")
+            # If we have a docker image to build in the repo, this logic block will be entered and handle building the image and applying the manifests
+            if pfo_config.get("docker", {}):
+                if pfo_config["docker"] == {}:
+                    spinner.info(f"No docker image(s) found for repo {repo}. Skipping...")
+                    continue
 
                 # Now we need to get the docker image from the repo - it should now be cloned to /tmp/.pfo/<repo>
                 # We need to get the artifact (docker image) for this project and add it to the manifest(s)
-                pass # TODO: Implement the logic to get the docker image and apply the manifests to the Kind cluster
-                
+                for _img_name, _img_data in pfo_config["docker"].items():
+                    try:
+                        client = docker.from_env()
+                        image, build_logs = client.images.build(
+                            path=os.path.join(self.temp, repo),
+                            dockerfile=os.path.join(self.temp, repo, _img_data["repo_path"]),
+                            tag=f"{_img_data['image']}:local",
+                            rm=True,
+                            pull=True
+                        )
+                        spinner.succeed(f"Docker image {_img_data['image']}:local built successfully!")
+                    except Exception as e:
+                        spinner.fail(f"Error: {e}")
+
+                # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
+                if pfo_config.get("k8s", {}).get("deploy", False):
+                    repo_url = f"https://github.com/{_owner}/{repo}.git"
+                    local_path = os.path.join(self.temp, repo)
+
+                    try:
+                        repo = Repo.clone_from(repo_url, local_path)
+                    except Exception as e:
+                        spinner.fail(f"Error: {e}")
+
+                    pass # TODO: Implement the logic to get the docker image and apply the manifests to the Kind cluster
+            else:
+                spinner.info(f"No docker image(s) found for repo {repo}. Skipping...")
 
         spinner.succeed("Kind cluster updated successfully!")
 
