@@ -163,6 +163,15 @@ def register() -> None:
     _data["registrant"]["user"] = _user_name
     _data["registrant"]["email"] = _user_email
 
+    # We need to add a docker section to the registration
+    _base = "docker"
+    _data["docker"] = {}
+    _data["docker"]["base_path"] = _base
+    _data["docker"]["image"] = f"{_name}"
+    _data["docker"]["path"] = f"{_base}/{_name}"
+    _data["docker"]["dockerfile"] = "Dockerfile"
+
+
     # Let's add the kubernetes data to the registration
     _data["k8s"] = {}
     _data["k8s"]["name"] = _name
