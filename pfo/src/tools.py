@@ -290,7 +290,7 @@ def bump_version(type: str) -> None:
         file.write(_json_data)
 
 
-def mac_only() -> None:
+def mac_only() -> bool:
     """This function checks if the system is running on MacOS."""
     if platform.system() == "Darwin":
         return True

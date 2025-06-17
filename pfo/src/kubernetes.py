@@ -9,6 +9,7 @@ import json
 import time
 import docker
 import subprocess
+import shutil
 import base64
 
 from typing import Any
@@ -26,7 +27,6 @@ from src.tools import (
     print_help_msg,
     register,
 )
-
 
 __author__ = "Philip De Lorenzo"
 
@@ -82,7 +82,9 @@ def k8s(**params: dict) -> None:
             default="local"
         )
 
-        create_kind_cluster(env=_environment) # Create the Kind cluster for local development
+        #create_kind_cluster(env=_environment) # Create the Kind cluster for local development
+        cluster = Cluster(env=_environment)
+        cluster.create() # Create the Kind cluster
         exit()
 
     if params.get("delete", False):
@@ -113,14 +115,18 @@ class Cluster():
     @Halo(text="Creating Kind Cluster...\n", spinner="dots")
     def create(self) -> None:
         """Creates the Kubernetes cluster."""
-        self.__ccluster() # Create the Kind cluster
-        self.__cluster_info() # Get the Kind cluster info
-        self.update() # Update the Kind cluster
-        self.__set_context() # Set the Kind cluster context
-
+        if self.__cluster_exists() is False: # Check if the Kind cluster already exists
+            self.__ccluster() # Create the Kind cluster
+            self.__cluster_info() # Get the Kind cluster info
+            self.update() # Update the Kind cluster
+            self.__set_context() # Set the Kind cluster context
+            spinner.succeed(f"Kind cluster {self.env} created successfully!")
+        else:
+            spinner.info(f"Kind cluster {self.env} already exists. Use --update to update the cluster.")
+    
     def delete(self) -> None:
         """Deletes the Kubernetes cluster."""
-        print("Deleting the Kubernetes cluster...")
+        print("CONSTRUCTION - Deleting the Kubernetes cluster...")
 
     @Halo(text="Updating Kind Cluster...\n", spinner="dots")
     def update(self) -> None:
@@ -153,42 +159,81 @@ class Cluster():
                     spinner.info(f"No docker image(s) found for repo {repo}. Skipping...")
                     continue
 
-                # Now we need to get the docker image from the repo - it should now be cloned to /tmp/.pfo/<repo>
-                # We need to get the artifact (docker image) for this project and add it to the manifest(s)
-                for _img_name, _img_data in pfo_config["docker"].items():
-                    try:
-                        client = docker.from_env()
-                        image, build_logs = client.images.build(
-                            path=os.path.join(self.temp, repo),
-                            dockerfile=os.path.join(self.temp, repo, _img_data["repo_path"]),
-                            tag=f"{_img_data['image']}:local",
-                            rm=True,
-                            pull=True
-                        )
-                        spinner.succeed(f"Docker image {_img_data['image']}:local built successfully!")
-                    except Exception as e:
-                        spinner.fail(f"Error: {e}")
+                # Let's clone the repo to a temporary directory
+                repo_url = f"https://github.com/{_owner}/{repo}.git" # Construct the repo URL
+                local_path = os.path.join(self.temp, repo)
+
+                # Clone the repo to the temporary directory
+                self.__clone_repo(repo_url=repo_url, local_path=local_path)
+            
+                # Let's build the docker images for the repo
+                self.__build_docker_images(pfo_config=pfo_config)
 
                 # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
                 if pfo_config.get("k8s", {}).get("deploy", False):
-                    repo_url = f"https://github.com/{_owner}/{repo}.git"
-                    local_path = os.path.join(self.temp, repo)
-
-                    try:
-                        repo = Repo.clone_from(repo_url, local_path)
-                    except Exception as e:
-                        spinner.fail(f"Error: {e}")
-
-                    pass # TODO: Implement the logic to get the docker image and apply the manifests to the Kind cluster
+                    print("Applying Kubernetes manifests...UNDER CONSTRUCTION")
             else:
                 spinner.info(f"No docker image(s) found for repo {repo}. Skipping...")
 
         spinner.succeed("Kind cluster updated successfully!")
 
-
     def info(self) -> None:
         """Displays information about the Kubernetes cluster."""
         print("Displaying information about the Kubernetes cluster...")
+
+    def __clone_repo(self, repo_url: str, local_path: str) -> None:
+        """Clones the repository to the local path."""
+        # Let's clone the repo to a temporary directory
+        _repo_name = repo_url.split("/")[-1].replace(".git", "")  # Get the repo name from the URL
+        local_path = os.path.join(self.temp, _repo_name)
+
+        if os.path.exists(local_path):
+            shutil.rmtree(local_path)  # Remove the existing repo directory
+
+        # Clone the repo to the temporary directory
+        try:
+            Repo.clone_from(repo_url, local_path)
+        except Exception as e:
+            spinner.fail(f"Error: {e}")
+
+    def __build_docker_images(self, pfo_config: Any) -> None:
+        # Now we need to get the docker image from the repo - it should now be cloned to /tmp/.pfo/<repo>
+        # We need to get the artifact (docker image) for this project and add it to the manifest(s)
+        client = self.__docker_connection()
+        _version = pfo_config.get("version", "latest")
+
+        if not client:
+            spinner.fail("Docker client connection failed. Cannot build images.")
+            return
+                
+        for _img_name, _img_data in pfo_config["docker"].items():
+            try:
+                spinner.info(f"Building Docker image {_img_data['image']}:local")
+                image, build_logs = client.images.build(
+                    path=os.path.join(self.temp, pfo_config["name"]),
+                    dockerfile=str(os.path.join(self.temp, pfo_config["name"], _img_data["repo_path"], _img_data["dockerfile"])),
+                    tag=f"{_img_data['image']}:local",
+                    rm=True,
+                    pull=True
+                )
+                _img = client.images.get(f"{_img_data['image']}:local")
+                _img.tag(f"{_img_data['image']}:{_version}")  # Tag the image with the version
+
+                spinner.succeed(f"Docker image {_img_data['image']}:local built successfully!")
+            except Exception as e:
+                spinner.fail(f"Error: {e}")
+
+    def __cluster_exists(self) -> bool:
+        """Checks if the Kubernetes cluster is running."""
+        try:
+            res = subprocess.run(["kind", "get", "clusters"], capture_output=True, text=True, check=True)
+            if self.env in res.stdout:
+                return True
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Error checking Kind cluster: {e}")
+            return False
+        
+        return False
 
     def __ccluster(self) -> None:
         res = subprocess.run(["kind", "create", "cluster", "--config", self._kind_config, "--name", self.env], check=True)
@@ -210,6 +255,37 @@ class Cluster():
             spinner.succeed("Kind cluster context set successfully!")
         else:
             spinner.fail("Failed to set Kind cluster context.")
+    
+    def __docker_connection(self) -> docker.DockerClient|None:
+        """Returns a Docker client connection."""
+    
+        # Check if Docker socket exists
+        if os.path.exists("/var/run/docker.sock"):
+            socket_path = '/var/run/docker.sock'
+        
+        if os.path.exists(os.path.expanduser("~/.docker/run/docker.sock")):
+            socket_path = os.path.expanduser("~/.docker/run/docker.sock")
+        
+        if not os.path.exists(socket_path):
+            spinner.warn(f"Docker socket not found at {socket_path}")
+            spinner.warn("This usually means Docker isn't running")
+            exit()
+        
+        # Try to connect to Docker
+        try:
+            client = docker.DockerClient(base_url=f"unix://{socket_path}")
+            client.ping()
+            return client
+        except FileNotFoundError:
+            spinner.warn("Docker daemon not running or not accessible")
+            spinner.warn("  Solutions:")
+            spinner.warn("  - Start Docker Desktop (Windows/Mac)")
+            spinner.warn("  - Run 'sudo systemctl start docker' (Linux)")
+            spinner.warn("  - Check if Docker is installed")
+            return None
+        except Exception as e:
+            spinner.fail(f"Unexpected error: {e}")
+            return None
     
     @property
     def repo_owner(self) -> str|None:
@@ -237,7 +313,7 @@ class Cluster():
                 pfo_content = json.loads(base64.b64decode(b64_content).decode("utf-8"))
                 self._repos_with_pfo.update({repo: pfo_content})
         except subprocess.CalledProcessError:
-            pass
+            return None
 
 
 @Halo(text="Creating Encryption Keys...\n", spinner="dots")
@@ -292,17 +368,3 @@ def create_enc_directory():
     _keys = os.path.join(_home, "keys")
     if not os.path.exists(_keys):
         os.makedirs(_keys)
-
-@Halo(text="Creating Kind Cluster...\n", spinner="dots")
-def create_kind_cluster(env: str = "local") -> None:
-    """Creates a Kind cluster for local development."""
-    # Let's run our scripts that automate the creation of the Kind cluster
-    _k8s_dir = os.path.join(metadata.rootdir, "k8s")
-    _kind_config = os.path.join(_k8s_dir, "kind-config.yaml")
-    _create_script = os.path.join(_k8s_dir, "create_cluster.sh")
-
-    try:
-        subprocess.run(["bash", "-l", _create_script, env], check=True)
-        spinner.succeed("Kind cluster created successfully!")
-    except subprocess.CalledProcessError as e:
-        spinner.fail(f"Failed to create Kind cluster: {e}")
