@@ -107,15 +107,25 @@ class Cluster():
     def __init__(self, env: str = "local") -> None:
         self.env: str = env
         self.temp: str = "/tmp/.pfo"
-        self._k8s_dir: str = os.path.join(metadata.rootdir, "k8s")
+        self._k8s_dir: str = os.path.join(metadata.rootdir, "k8s") # This is the directory on the user's host machine where the Kubernetes manifests will be stored
         self._kind_config: str = os.path.join(self._k8s_dir, "kind-config.yaml")
         self._repos_with_pfo: dict[str, Any] = {} # Dictionary to hold repos with pfo.json configs
         self.epoch_tag: str = str(time.time()).split(".")[0] # Epoch timestamp for tagging resources
 
+    @property
+    def repo_owner(self) -> str|None:
+        try:
+            res = subprocess.run(["gh", "repo", "view", "--json", "owner"], capture_output=True, text=True, check=True).stdout # This is a json string output
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to get repo owner: {e}")
+        
+        return json.loads(res)["owner"]["login"] if res else None
+    
     @Halo(text="Creating Kind Cluster...\n", spinner="dots")
     def create(self) -> None:
         """Creates the Kubernetes cluster."""
         if self.__cluster_exists() is False: # Check if the Kind cluster already exists
+            self.__get_k8s_config_and_manifests() # Get the Kubernetes config && manifests
             self.__ccluster() # Create the Kind cluster
             self.__cluster_info() # Get the Kind cluster info
             self.update() # Update the Kind cluster
@@ -128,7 +138,7 @@ class Cluster():
         """Deletes the Kubernetes cluster."""
         print("CONSTRUCTION - Deleting the Kubernetes cluster...")
 
-    @Halo(text="Updating Kind Cluster...\n", spinner="dots")
+    @Halo(text="Updating Kind Cluster...\n\n", spinner="dots")
     def update(self) -> None:
         """Updates the Kubernetes cluster."""
         _owner = self.repo_owner
@@ -136,7 +146,7 @@ class Cluster():
             spinner.fail("Cannot continue updating the Kubernetes cluster.")
             return
         
-        Halo(text_color="blue", spinner="dots").info(f"Getting repository data from GitHub for Org: {_owner}")
+        Halo(text_color="blue", spinner="dots").info(f"Retrieving repository data from GitHub for Org: {_owner}")
         _repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
         # Let's get any repo in the Org that has a pfo.json config file in the root directory
         if not _repos:
@@ -148,6 +158,10 @@ class Cluster():
         # Now let's iterate through the repos and get the pfo.json config file if it exists
         for repo in _repos:
             self.__get_pfo_configs_for_repo(owner=_owner, repo=repo)
+
+        # Now we will create/update the base Kubernetes manifests for the project
+        self.__get_k8s_config_and_manifests()
+        exit()
 
         # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
@@ -177,9 +191,77 @@ class Cluster():
 
         spinner.succeed("Kind cluster updated successfully!")
 
+    # UNDER CONSTRUCTION
     def info(self) -> None:
         """Displays information about the Kubernetes cluster."""
         print("Displaying information about the Kubernetes cluster...")
+
+    # UNDER CONSTRUCTION
+    ### Manifests creation/update methods
+    def __get_k8s_config_and_manifests(self) -> None:
+        """Gets the Kubernetes config and manifests for the project.
+        
+        This function gets the data from the k8s_installs git repository in PyFlowOps, which contains the base Kubernetes manifests and configurations.
+        It will clone the repository to a temporary directory and create the necessary Kubernetes namespace for the project.
+        """
+        if os.path.exists(os.path.join(self._k8s_dir, self.env)):
+            shutil.rmtree(os.path.join(self._k8s_dir, self.env))  # Remove the existing k8s directory
+            os.makedirs(os.path.join(self._k8s_dir, self.env))  # Create a new k8s directory for the environment
+
+        self.__copy_kind_config()  # Copy the kind-config.yaml file to the k8s directory
+        spinner.succeed("Created base Kubernetes manifests for the project...")
+
+    def __copy_kind_config(self) -> None:
+        if os.path.exists(os.path.join(self.temp, "k8s-installs")):
+            _r = Repo(os.path.join(self.temp, "k8s-installs"))
+            _orig = _r.remotes.origin
+            try:
+                _orig.pull()  # Pull the latest changes from the remote repository
+            except Exception as e:
+                spinner.fail(f"Failed to pull latest changes: {e}")
+                return
+        else:
+            try:
+                Repo.clone_from(
+                    f"https://github.com/PyFlowOps/k8s-installs.git",
+                    os.path.join(self.temp, "k8s-installs")
+                )  # Clone the k8s_installs repo to a temporary directory
+            except Exception as e:
+                spinner.fail(f"Failed to clone k8s-installs repository: {e}")
+                return
+
+        _cmd = ["rsync", "-av", "--mkpath", os.path.join(self.temp, "k8s-installs", "deploy", "kind-config.yaml"),  os.path.join(self._k8s_dir, "kind-config.yaml")]
+        
+        res = subprocess.run(
+            _cmd,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        if res.returncode == 0:
+            spinner.succeed("Kubernetes config file copied successfully!")
+            self._kind_config = os.path.join(self._k8s_dir, "kind-config.yaml")
+        else:
+            spinner.fail(f"Failed to copy Kubernetes config file: {res.stderr}")
+            return
+
+
+    def __create_namespace(self) -> None:
+        """Creates the Kubernetes namespace for the project."""
+        try:
+            res = subprocess.run(
+                ["kubectl", "create", "namespace", self.env],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            if res.returncode == 0:
+                spinner.succeed(f"Namespace {self.env} created successfully!")
+            else:
+                spinner.fail(f"Failed to create namespace {self.env}: {res.stderr}")
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Error creating namespace: {e}")
+
 
     def __clone_repo(self, repo_url: str, local_path: str) -> None:
         """Clones the repository to the local path."""
@@ -286,15 +368,6 @@ class Cluster():
         except Exception as e:
             spinner.fail(f"Unexpected error: {e}")
             return None
-    
-    @property
-    def repo_owner(self) -> str|None:
-        try:
-            res = subprocess.run(["gh", "repo", "view", "--json", "owner"], capture_output=True, text=True, check=True).stdout # This is a json string output
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to get repo owner: {e}")
-        
-        return json.loads(res)["owner"]["login"] if res else None
     
     def __current_repo_list(self, owner: str) -> list|None:
         res = subprocess.run(["gh", "repo", "list", owner, "--json", "name"], capture_output=True, text=True, check=True)
