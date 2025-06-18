@@ -11,6 +11,7 @@ import docker
 import subprocess
 import shutil
 import base64
+import yaml
 
 from typing import Any
 from git import Repo
@@ -128,6 +129,7 @@ class Cluster():
             self.__get_k8s_config_and_manifests() # Get the Kubernetes config && manifests
             self.__ccluster() # Create the Kind cluster
             self.__cluster_info() # Get the Kind cluster info
+            self.__cnamespace() # Create the Kubernetes namespace for the project
             self.update() # Update the Kind cluster
             self.__set_context() # Set the Kind cluster context
             spinner.succeed(f"Kind cluster {self.env} created successfully!")
@@ -161,7 +163,8 @@ class Cluster():
 
         # Now we will create/update the base Kubernetes manifests for the project
         self.__get_k8s_config_and_manifests()
-        exit()
+
+        self.create_namespace_file()  # Create the namespace file for the project
 
         # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
@@ -178,7 +181,10 @@ class Cluster():
                 local_path = os.path.join(self.temp, repo)
 
                 # Clone the repo to the temporary directory
-                self.__clone_repo(repo_url=repo_url, local_path=local_path)
+                self.__clone_repo(
+                    repo_url=repo_url,
+                    local_path=local_path
+                )
             
                 # Let's build the docker images for the repo
                 self.__build_docker_images(pfo_config=pfo_config)
@@ -187,7 +193,7 @@ class Cluster():
                 if pfo_config.get("k8s", {}).get("deploy", False):
                     print("Applying Kubernetes manifests...UNDER CONSTRUCTION")
             else:
-                spinner.info(f"No docker image(s) found for repo {repo}. Skipping...")
+                spinner.warn(f"No docker image(s) found for repo {repo}. Skipping...")
 
         spinner.succeed("Kind cluster updated successfully!")
 
@@ -195,6 +201,25 @@ class Cluster():
     def info(self) -> None:
         """Displays information about the Kubernetes cluster."""
         print("Displaying information about the Kubernetes cluster...")
+
+    def create_namespace_file(self) -> None:
+        """Creates the namespace file for the project."""
+        _tmp_namespace = os.path.join(self.temp, "k8s-installs", "deploy", self.env, "namespace.yaml")
+        if os.path.isfile(_tmp_namespace):
+            _ns_data = yaml.safe_load(open(_tmp_namespace, "r").read())
+        
+        if not _ns_data:
+            spinner.fail("Namespace file not found.")
+            return
+
+        _ns_data["metadata"]["name"] = self.env  # Set the namespace name to the environment
+        _ns_data["metadata"]["labels"]["name"] = self.env  # Set the namespace label to the environment
+
+        _namespace = os.path.join(self._k8s_dir, self.env, "namespace.yaml")
+        with open(_namespace, "w") as f:
+            yaml.dump(_ns_data, f, default_flow_style=False)
+
+        spinner.succeed(f"Namespace file created at {_namespace} for environment {self.env}.")
 
     # UNDER CONSTRUCTION
     ### Manifests creation/update methods
@@ -245,9 +270,18 @@ class Cluster():
             spinner.fail(f"Failed to copy Kubernetes config file: {res.stderr}")
             return
 
-
-    def __create_namespace(self) -> None:
+    def __cnamespace(self) -> None:
         """Creates the Kubernetes namespace for the project."""
+        _check = subprocess.run(
+            ["kubectl", "get", "--output=json", "namespace", self.env],
+            capture_output=True,
+            text=True
+        )
+        
+        if json.loads(_check.stdout).get("status", {}).get("phase") == "Active":
+            spinner.info(f"Namespace {self.env} already exists. Skipping creation.")
+            return
+
         try:
             res = subprocess.run(
                 ["kubectl", "create", "namespace", self.env],
@@ -261,7 +295,6 @@ class Cluster():
                 spinner.fail(f"Failed to create namespace {self.env}: {res.stderr}")
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Error creating namespace: {e}")
-
 
     def __clone_repo(self, repo_url: str, local_path: str) -> None:
         """Clones the repository to the local path."""
@@ -290,7 +323,6 @@ class Cluster():
                 
         for _img_name, _img_data in pfo_config["docker"].items():
             try:
-                spinner.info(f"Building Docker image {_img_data['image']}:local")
                 image, build_logs = client.images.build(
                     path=os.path.join(self.temp, pfo_config["name"]),
                     dockerfile=str(os.path.join(self.temp, pfo_config["name"], _img_data["repo_path"], _img_data["dockerfile"])),
