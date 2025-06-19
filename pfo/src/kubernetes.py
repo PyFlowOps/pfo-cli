@@ -191,7 +191,8 @@ class Cluster():
 
                 # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
                 if pfo_config.get("k8s", {}).get("deploy", False):
-                    print("Applying Kubernetes manifests...UNDER CONSTRUCTION")
+                    print("### UNDER CONSTRUCTION ###")
+                    print("This phase would apply the Kubernetes manifests, Kustomize...")
             else:
                 spinner.warn(f"No docker image(s) found for repo {repo}. Skipping...")
 
@@ -221,6 +222,23 @@ class Cluster():
 
         spinner.succeed(f"Namespace file created at {_namespace} for environment {self.env}.")
 
+    def run_command(self, cmd: list) -> None:
+        try:
+            res = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            if res.returncode == 0:
+                pass
+            else:
+                spinner.fail(f"Command {cmd} failed!")
+                spinner.fail(f"ERROR -  {res.stderr}")
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Command {cmd} failed!")
+            spinner.fail(f"ERROR -  {e}")
+
     # UNDER CONSTRUCTION
     ### Manifests creation/update methods
     def __get_k8s_config_and_manifests(self) -> None:
@@ -234,6 +252,8 @@ class Cluster():
             os.makedirs(os.path.join(self._k8s_dir, self.env))  # Create a new k8s directory for the environment
 
         self.__copy_kind_config()  # Copy the kind-config.yaml file to the k8s directory
+        self.__cstorage_manifest() # Create the storage manifest for the project
+
         spinner.succeed("Created base Kubernetes manifests for the project...")
 
     def __copy_kind_config(self) -> None:
@@ -295,6 +315,47 @@ class Cluster():
                 spinner.fail(f"Failed to create namespace {self.env}: {res.stderr}")
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Error creating namespace: {e}")
+
+    def __cstorage_manifest(self) -> None:
+        """Creates the Kubernetes storage for the project."""
+        # This is a placeholder for creating storage in the Kubernetes cluster
+        # Currently, we are not implementing this functionality
+        _tmp_storage = os.path.join(self.temp, "k8s-installs", "deploy", self.env, "storage")
+
+        _check = subprocess.run(
+            ["kubectl", "get", "--output=json", "persistentvolume"],
+            capture_output=True,
+            text=True
+        )
+        for i in json.loads(_check.stdout).get("items", []):
+            if i.get("metadata", {}).get("name") == f"pyflowops-pv":
+                if i.get("status", {}).get("phase") == "Active":
+                    spinner.info(f"Persistent Volume {self.env} already exists. Skipping creation.")
+                    return
+                
+        _cmd = ["rsync", "-av", "--mkpath", os.path.join(self.temp, "k8s-installs", "deploy", self.env, "storage", "kustomization.yaml"),  os.path.join(self._k8s_dir, self.env, "storage", "kustomization.yaml")] # Copy the kustomization.yaml file to the k8s directory
+        self.run_command(cmd=_cmd)  # Run the command to copy the kustomization.yaml file
+        
+        _cmd = ["rsync", "-av", "--mkpath", os.path.join(self.temp, "k8s-installs", "deploy", self.env, "kustomization.yaml"),  os.path.join(self._k8s_dir, self.env, "kustomization.yaml")] # Copy the kustomization.yaml file to the k8s directory
+        self.run_command(cmd=_cmd)  # Run the command to copy the kustomization.yaml file
+
+        for _file in os.listdir(_tmp_storage):
+            if _file == "kustomization.yaml":
+                continue
+                
+            _file_path = os.path.join(_tmp_storage, _file)
+            _file_load = yaml.safe_load(open(_file_path, "r").read())
+            if not _file_load:
+                spinner.fail(f"Failed to load storage file {_file_path}.")
+                continue
+
+            _file_load["metadata"]["namespace"] = self.env  # Set the name of the persistent volume to the environment
+            _file_load["metadata"]["labels"]["type"] = self.env  # Set the label of the persistent volume to the environment
+
+            with open(os.path.join(self._k8s_dir, self.env, "storage", _file), "w") as f:
+                yaml.dump(_file_load, f, default_flow_style=False)
+
+            exit()
 
     def __clone_repo(self, repo_url: str, local_path: str) -> None:
         """Clones the repository to the local path."""
