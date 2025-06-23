@@ -13,6 +13,7 @@ import shutil
 import base64
 import yaml
 
+from cookiecutter.main import cookiecutter
 from typing import Any
 from git import Repo
 from click_option_group import optgroup
@@ -52,6 +53,12 @@ spinner = Halo(text_color="blue", spinner="dots")
     help=f"Deletes the Kubernetes cluster (Kind) and all associated resources",
 )
 @optgroup.option(
+    "--delete-all",
+    required=False,
+    is_flag=True,
+    help=f"Deletes all Kubernetes (Kind) clusters and all associated resources",
+)
+@optgroup.option(
     "--update",
     required=False,
     is_flag=True,
@@ -89,7 +96,12 @@ def k8s(**params: dict) -> None:
         exit()
 
     if params.get("delete", False):
+        print("UNDER CONSTRUCTION - Deleting the Kubernetes cluster...")
         print(params)
+
+    if params.get("delete_all", False):
+        # Deletes all Kind clusters and associated resources
+        Cluster.delete_all()
     
     if params.get("info", False):
         print(params)
@@ -108,7 +120,7 @@ class Cluster():
     def __init__(self, env: str = "local") -> None:
         self.env: str = env
         self.temp: str = "/tmp/.pfo"
-        self._k8s_dir: str = os.path.join(metadata.rootdir, "k8s") # This is the directory on the user's host machine where the Kubernetes manifests will be stored
+        self._k8s_dir: str = os.path.join(metadata.rootdir, "k8s") # Directory for the Kubernetes manifests
         self._kind_config: str = os.path.join(self._k8s_dir, "kind-config.yaml")
         self._repos_with_pfo: dict[str, Any] = {} # Dictionary to hold repos with pfo.json configs
         self.epoch_tag: str = str(time.time()).split(".")[0] # Epoch timestamp for tagging resources
@@ -126,19 +138,25 @@ class Cluster():
     def create(self) -> None:
         """Creates the Kubernetes cluster."""
         if self.__cluster_exists() is False: # Check if the Kind cluster already exists
-            self.__get_k8s_config_and_manifests() # Get the Kubernetes config && manifests
-            self.__ccluster() # Create the Kind cluster
+            self.__create_cluster() # Create the Kind cluster
             self.__cluster_info() # Get the Kind cluster info
-            self.__cnamespace() # Create the Kubernetes namespace for the project
             self.update() # Update the Kind cluster
             self.__set_context() # Set the Kind cluster context
             spinner.succeed(f"Kind cluster {self.env} created successfully!")
         else:
             spinner.info(f"Kind cluster {self.env} already exists. Use --update to update the cluster.")
     
-    def delete(self) -> None:
+    @staticmethod
+    @Halo(text="Deleting Kind Cluster...\n\n", spinner="dots")
+    def delete_all() -> None:
         """Deletes the Kubernetes cluster."""
-        print("CONSTRUCTION - Deleting the Kubernetes cluster...")
+        _cmd = ["kind get clusters | xargs -t -n1 kind delete cluster --name"]
+        try:
+            subprocess.run(_cmd, shell=True, check=True, capture_output=True, text=True)
+            spinner.succeed("All Kind clusters deleted successfully!")
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to delete Kind clusters: {e}")
+            return
 
     @Halo(text="Updating Kind Cluster...\n\n", spinner="dots")
     def update(self) -> None:
@@ -162,9 +180,7 @@ class Cluster():
             self.__get_pfo_configs_for_repo(owner=_owner, repo=repo)
 
         # Now we will create/update the base Kubernetes manifests for the project
-        self.__get_k8s_config_and_manifests()
-
-        self.create_namespace_file()  # Create the namespace file for the project
+        self.set_configs_and_manifests()
 
         # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
@@ -191,10 +207,23 @@ class Cluster():
 
                 # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
                 if pfo_config.get("k8s", {}).get("deploy", False):
-                    print("### UNDER CONSTRUCTION ###")
-                    print("This phase would apply the Kubernetes manifests, Kustomize...")
+                    _kustomize_config = yaml.safe_load(open(os.path.join(self._k8s_dir, self.env, "kustomization.yaml")))
+                    with open(os.path.join(self._k8s_dir, self.env, "kustomization.yaml"), "r") as kf:
+                        # Since the deploy key is true, we will add the docker image to the kustomization.yaml file
+                        _kdata = yaml.safe_load(kf)
+                    
+                    # Let's augment the kustomization.yaml file with the docker image
+                    for _iname, idata in pfo_config["docker"].items():
+                        _kdata["images"].append({"name": pfo_config["docker"][_iname]["image"], "newName": f"{pfo_config['docker'][_iname]['image'].split('/')[-1]}", "newTag": self.env})
+                    
+                    # Now we will write the kustomization.yaml file back to the disk
+                    with open(os.path.join(metadata.rootdir, "k8s", self.env, "kustomization.yaml"), "w") as kf:
+                        yaml.dump(_kdata, kf, default_flow_style=False)
             else:
                 spinner.warn(f"No docker image(s) found for repo {repo}. Skipping...")
+
+        # Now we will build the Kubernetes manifests using kustomize and apply them to the Kind cluster
+        self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
 
         spinner.succeed("Kind cluster updated successfully!")
 
@@ -203,30 +232,39 @@ class Cluster():
         """Displays information about the Kubernetes cluster."""
         print("Displaying information about the Kubernetes cluster...")
 
-    def create_namespace_file(self) -> None:
-        """Creates the namespace file for the project."""
-        _tmp_namespace = os.path.join(self.temp, "k8s-installs", "deploy", self.env, "namespace.yaml")
-        if os.path.isfile(_tmp_namespace):
-            _ns_data = yaml.safe_load(open(_tmp_namespace, "r").read())
+    ### Manifests creation/update methods
+    def set_configs_and_manifests(self) -> None:
+        """Gets the Kubernetes config and manifests for the project.
         
-        if not _ns_data:
-            spinner.fail("Namespace file not found.")
+        This function gets the data from the k8s_installs git repository in PyFlowOps, which contains the base Kubernetes manifests and configurations.
+        It will clone the repository to a temporary directory and create the necessary Kubernetes namespace for the project.
+        """
+        k8s_remote = "https://github.com/pyflowops/k8s-installs.git"
+
+        if os.path.exists(os.path.join(metadata.rootdir, "k8s")):
+            shutil.rmtree(os.path.join(metadata.rootdir, "k8s"))  # Remove the existing k8s directory
+
+        try:
+            cookiecutter(
+                k8s_remote,
+                checkout="main",
+                directory="kind-cluster",
+                no_input=True,
+                extra_context={
+                    "namespace": self.env
+                },
+                output_dir=os.path.join(metadata.rootdir),
+            )
+        except Exception as e:
+            spinner.fail(f"Failed to create Kubernetes manifests: {e}")
             return
-
-        _ns_data["metadata"]["name"] = self.env  # Set the namespace name to the environment
-        _ns_data["metadata"]["labels"]["name"] = self.env  # Set the namespace label to the environment
-
-        _namespace = os.path.join(self._k8s_dir, self.env, "namespace.yaml")
-        with open(_namespace, "w") as f:
-            yaml.dump(_ns_data, f, default_flow_style=False)
-
-        spinner.succeed(f"Namespace file created at {_namespace} for environment {self.env}.")
 
     def run_command(self, cmd: list) -> None:
         try:
             res = subprocess.run(
                 cmd,
                 check=True,
+                shell=True,
                 capture_output=True,
                 text=True
             )
@@ -239,123 +277,11 @@ class Cluster():
             spinner.fail(f"Command {cmd} failed!")
             spinner.fail(f"ERROR -  {e}")
 
-    # UNDER CONSTRUCTION
-    ### Manifests creation/update methods
-    def __get_k8s_config_and_manifests(self) -> None:
-        """Gets the Kubernetes config and manifests for the project.
-        
-        This function gets the data from the k8s_installs git repository in PyFlowOps, which contains the base Kubernetes manifests and configurations.
-        It will clone the repository to a temporary directory and create the necessary Kubernetes namespace for the project.
-        """
-        if os.path.exists(os.path.join(self._k8s_dir, self.env)):
-            shutil.rmtree(os.path.join(self._k8s_dir, self.env))  # Remove the existing k8s directory
-            os.makedirs(os.path.join(self._k8s_dir, self.env))  # Create a new k8s directory for the environment
+    def kustomize_build(self) -> None:
+        _cmd = [f"kustomize build {os.path.join(metadata.rootdir, "k8s", self.env)} | kubectl apply -f -"]
 
-        self.__copy_kind_config()  # Copy the kind-config.yaml file to the k8s directory
-        self.__cstorage_manifest() # Create the storage manifest for the project
-
-        spinner.succeed("Created base Kubernetes manifests for the project...")
-
-    def __copy_kind_config(self) -> None:
-        if os.path.exists(os.path.join(self.temp, "k8s-installs")):
-            _r = Repo(os.path.join(self.temp, "k8s-installs"))
-            _orig = _r.remotes.origin
-            try:
-                _orig.pull()  # Pull the latest changes from the remote repository
-            except Exception as e:
-                spinner.fail(f"Failed to pull latest changes: {e}")
-                return
-        else:
-            try:
-                Repo.clone_from(
-                    f"https://github.com/PyFlowOps/k8s-installs.git",
-                    os.path.join(self.temp, "k8s-installs")
-                )  # Clone the k8s_installs repo to a temporary directory
-            except Exception as e:
-                spinner.fail(f"Failed to clone k8s-installs repository: {e}")
-                return
-
-        _cmd = ["rsync", "-av", "--mkpath", os.path.join(self.temp, "k8s-installs", "deploy", "kind-config.yaml"),  os.path.join(self._k8s_dir, "kind-config.yaml")]
-        
-        res = subprocess.run(
-            _cmd,
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        if res.returncode == 0:
-            spinner.succeed("Kubernetes config file copied successfully!")
-            self._kind_config = os.path.join(self._k8s_dir, "kind-config.yaml")
-        else:
-            spinner.fail(f"Failed to copy Kubernetes config file: {res.stderr}")
-            return
-
-    def __cnamespace(self) -> None:
-        """Creates the Kubernetes namespace for the project."""
-        _check = subprocess.run(
-            ["kubectl", "get", "--output=json", "namespace", self.env],
-            capture_output=True,
-            text=True
-        )
-        
-        if json.loads(_check.stdout).get("status", {}).get("phase") == "Active":
-            spinner.info(f"Namespace {self.env} already exists. Skipping creation.")
-            return
-
-        try:
-            res = subprocess.run(
-                ["kubectl", "create", "namespace", self.env],
-                check=True,
-                capture_output=True,
-                text=True
-            )
-            if res.returncode == 0:
-                spinner.succeed(f"Namespace {self.env} created successfully!")
-            else:
-                spinner.fail(f"Failed to create namespace {self.env}: {res.stderr}")
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Error creating namespace: {e}")
-
-    def __cstorage_manifest(self) -> None:
-        """Creates the Kubernetes storage for the project."""
-        # This is a placeholder for creating storage in the Kubernetes cluster
-        # Currently, we are not implementing this functionality
-        _tmp_storage = os.path.join(self.temp, "k8s-installs", "deploy", self.env, "storage")
-
-        _check = subprocess.run(
-            ["kubectl", "get", "--output=json", "persistentvolume"],
-            capture_output=True,
-            text=True
-        )
-        for i in json.loads(_check.stdout).get("items", []):
-            if i.get("metadata", {}).get("name") == f"pyflowops-pv":
-                if i.get("status", {}).get("phase") == "Active":
-                    spinner.info(f"Persistent Volume {self.env} already exists. Skipping creation.")
-                    return
-                
-        _cmd = ["rsync", "-av", "--mkpath", os.path.join(self.temp, "k8s-installs", "deploy", self.env, "storage", "kustomization.yaml"),  os.path.join(self._k8s_dir, self.env, "storage", "kustomization.yaml")] # Copy the kustomization.yaml file to the k8s directory
-        self.run_command(cmd=_cmd)  # Run the command to copy the kustomization.yaml file
-        
-        _cmd = ["rsync", "-av", "--mkpath", os.path.join(self.temp, "k8s-installs", "deploy", self.env, "kustomization.yaml"),  os.path.join(self._k8s_dir, self.env, "kustomization.yaml")] # Copy the kustomization.yaml file to the k8s directory
-        self.run_command(cmd=_cmd)  # Run the command to copy the kustomization.yaml file
-
-        for _file in os.listdir(_tmp_storage):
-            if _file == "kustomization.yaml":
-                continue
-                
-            _file_path = os.path.join(_tmp_storage, _file)
-            _file_load = yaml.safe_load(open(_file_path, "r").read())
-            if not _file_load:
-                spinner.fail(f"Failed to load storage file {_file_path}.")
-                continue
-
-            _file_load["metadata"]["namespace"] = self.env  # Set the name of the persistent volume to the environment
-            _file_load["metadata"]["labels"]["type"] = self.env  # Set the label of the persistent volume to the environment
-
-            with open(os.path.join(self._k8s_dir, self.env, "storage", _file), "w") as f:
-                yaml.dump(_file_load, f, default_flow_style=False)
-
-            exit()
+        # Builds the Kubernetes manifests using kustomize and applies them to the cluster
+        self.run_command(_cmd)
 
     def __clone_repo(self, repo_url: str, local_path: str) -> None:
         """Clones the repository to the local path."""
@@ -410,8 +336,13 @@ class Cluster():
         
         return False
 
-    def __ccluster(self) -> None:
-        res = subprocess.run(["kind", "create", "cluster", "--config", self._kind_config, "--name", self.env], check=True)
+    def __create_cluster(self) -> None:
+        try:
+            res = subprocess.run(["kind", "create", "cluster", "--config", self._kind_config, "--name", f"kind-{self.env}"], check=True)
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to create Kind cluster: {e}")
+            return
+        
         if res.returncode == 0:
             spinner.succeed("Kind cluster created successfully!")
         else:
@@ -420,6 +351,7 @@ class Cluster():
     def __cluster_info(self) -> None:
         res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-{self.env}"], check=True)
         if res.returncode == 0:
+            spinner.info(res.stdout)
             spinner.succeed("Kind cluster info retrieved successfully!")
         else:
             spinner.fail("Failed to retrieve Kind cluster info.")
