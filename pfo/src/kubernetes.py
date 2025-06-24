@@ -134,17 +134,19 @@ class Cluster():
         
         return json.loads(res)["owner"]["login"] if res else None
     
-    @Halo(text="Creating Kind Cluster...\n", spinner="dots")
     def create(self) -> None:
         """Creates the Kubernetes cluster."""
+        _cspin = Halo(text_color="blue", spinner="dots")
         if self.__cluster_exists() is False: # Check if the Kind cluster already exists
+            _cspin.start(f"Creating Kind cluster {self.env}...\n\n")
             self.__create_cluster() # Create the Kind cluster
             self.__cluster_info() # Get the Kind cluster info
-            self.update() # Update the Kind cluster
-            self.__set_context() # Set the Kind cluster context
-            spinner.succeed(f"Kind cluster {self.env} created successfully!")
+            _cspin.succeed(f"Kind cluster {self.env} created successfully!")
         else:
-            spinner.info(f"Kind cluster {self.env} already exists. Use --update to update the cluster.")
+            _cspin.info(f"Kind cluster {self.env} already exists. Use --update to update the cluster.")
+
+        self.update() # Update the Kind cluster
+        self.__set_context() # Set the Kind cluster context
     
     @staticmethod
     @Halo(text="Deleting Kind Cluster...\n\n", spinner="dots")
@@ -203,7 +205,7 @@ class Cluster():
                 )
             
                 # Let's build the docker images for the repo
-                self.__build_docker_images(pfo_config=pfo_config)
+                self.__build_and_load_docker_images(pfo_config=pfo_config)
 
                 # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
                 if pfo_config.get("k8s", {}).get("deploy", False):
@@ -214,10 +216,17 @@ class Cluster():
                     
                     # Let's augment the kustomization.yaml file with the docker image
                     for _iname, idata in pfo_config["docker"].items():
-                        _kdata["images"].append({"name": pfo_config["docker"][_iname]["image"], "newName": f"{pfo_config['docker'][_iname]['image'].split('/')[-1]}", "newTag": self.env})
-                    
+                        #_kdata["images"].append({"name": pfo_config["docker"][_iname]["image"], "newName": f"{pfo_config['docker'][_iname]['image'].split('/')[-1]}", "newTag": self.env})
+                        _kdata["images"].append(
+                            {
+                                "name": pfo_config["docker"][_iname]["image"],
+                                "newName": f"{pfo_config['docker'][_iname]['image']}",
+                                "newTag": self.env
+                            }
+                        )
+
                     # Now we will write the kustomization.yaml file back to the disk
-                    with open(os.path.join(metadata.rootdir, "k8s", self.env, "kustomization.yaml"), "w") as kf:
+                    with open(os.path.join(self._k8s_dir, self.env, "kustomization.yaml"), "w") as kf:
                         yaml.dump(_kdata, kf, default_flow_style=False)
             else:
                 spinner.warn(f"No docker image(s) found for repo {repo}. Skipping...")
@@ -279,9 +288,22 @@ class Cluster():
 
     def kustomize_build(self) -> None:
         _cmd = [f"kustomize build {os.path.join(metadata.rootdir, "k8s", self.env)} | kubectl apply -f -"]
+        self.run_command(_cmd) # Builds the Kubernetes manifests using kustomize and applies them to the cluster
 
-        # Builds the Kubernetes manifests using kustomize and applies them to the cluster
-        self.run_command(_cmd)
+    def __load_image(self, image_name: str, nodes: str) -> None:
+        """Loads a Docker image from the local filesystem to the kind cluster.
+        
+        Args:
+            image_name (str): The name of the Docker image to load.
+            nodes (str): The list of worker nodes to load the image to, separated by commas (e.g., "node1,node2").
+        """
+        # ONLY *:local images can be loaded into Kind clusters, so we will use the local tag
+        if image_name.endswith(":local"):
+            _cmd = [f"kind load docker-image {image_name} --name {self.env} --nodes {nodes} -v 5"]
+            self.run_command(cmd=_cmd) # Run the command to load the Docker image
+            return
+        
+        spinner.info(f"Only images with the ':local' tag can be loaded into Kind clusters. - disregarding tag: {image_name.split(':')[-1]}")
 
     def __clone_repo(self, repo_url: str, local_path: str) -> None:
         """Clones the repository to the local path."""
@@ -298,7 +320,7 @@ class Cluster():
         except Exception as e:
             spinner.fail(f"Error: {e}")
 
-    def __build_docker_images(self, pfo_config: Any) -> None:
+    def __build_and_load_docker_images(self, pfo_config: Any) -> None:
         # Now we need to get the docker image from the repo - it should now be cloned to /tmp/.pfo/<repo>
         # We need to get the artifact (docker image) for this project and add it to the manifest(s)
         client = self.__docker_connection()
@@ -307,8 +329,9 @@ class Cluster():
         if not client:
             spinner.fail("Docker client connection failed. Cannot build images.")
             return
-                
-        for _img_name, _img_data in pfo_config["docker"].items():
+        
+        # Build phase
+        for _, _img_data in pfo_config["docker"].items():
             try:
                 image, build_logs = client.images.build(
                     path=os.path.join(self.temp, pfo_config["name"]),
@@ -318,9 +341,24 @@ class Cluster():
                     pull=True
                 )
                 _img = client.images.get(f"{_img_data['image']}:local")
-                _img.tag(f"{_img_data['image']}:{_version}")  # Tag the image with the version
+                _img.tag(f"{_img_data['image']}:{_version}") # Tag the image with the version
 
                 spinner.succeed(f"Docker image {_img_data['image']}:local built successfully!")
+            except Exception as e:
+                spinner.fail(f"Error: {e}")
+
+        # Load phase
+        for _, _img_data in pfo_config["docker"].items():
+            try:
+                _wkrs = subprocess.run(["kind", "get", "nodes", "--name", self.env], capture_output=True, text=True, check=True)
+                _wknodes = ','.join([i for i in _wkrs.stdout.strip().split("\n") if "control-plane" not in i]) # Get the list of worker nodes, convert to a comma-separated string
+
+                if _wkrs.returncode != 0:
+                    spinner.fail(f"Error getting Kind nodes: {_wkrs.stderr}")
+                    return
+
+                self.__load_image(image_name=f"{_img_data['image']}:local", nodes=_wknodes)  # Load the image to the Kind cluster
+                spinner.succeed(f"Docker image {_img_data['image']}:local loaded successfully!")
             except Exception as e:
                 spinner.fail(f"Error: {e}")
 
@@ -337,8 +375,12 @@ class Cluster():
         return False
 
     def __create_cluster(self) -> None:
+        if not os.path.exists(self._kind_config):
+            spinner.fail(f"Kind config file not found at {self._kind_config}. Please ensure it exists.")
+            return
+        
         try:
-            res = subprocess.run(["kind", "create", "cluster", "--config", self._kind_config, "--name", f"kind-{self.env}"], check=True)
+            res = subprocess.run(["kind", "create", "cluster", "--config", self._kind_config, "--name", self.env], check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to create Kind cluster: {e}")
             return
@@ -349,15 +391,14 @@ class Cluster():
             spinner.fail("Failed to create Kind cluster.")
 
     def __cluster_info(self) -> None:
-        res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-{self.env}"], check=True)
-        if res.returncode == 0:
-            spinner.info(res.stdout)
-            spinner.succeed("Kind cluster info retrieved successfully!")
-        else:
-            spinner.fail("Failed to retrieve Kind cluster info.")
+        try:
+            res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-{self.env}"], check=True)
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to retrieve Kind cluster info: {e}")
+            return
         
     def __set_context(self) -> None:
-        res = subprocess.run(["kubectl", "config", "use-context", "--current", f"--namespace={self.env}"], check=True)
+        res = subprocess.run(["kubectl", "config", "set-context", "--current", f"--namespace={self.env}"], check=True, capture_output=True, text=True)
         if res.returncode == 0:
             spinner.succeed("Kind cluster context set successfully!")
         else:
