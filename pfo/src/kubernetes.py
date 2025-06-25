@@ -333,6 +333,31 @@ class Cluster():
         # Build phase
         for _, _img_data in pfo_config["docker"].items():
             try:
+                # In order to build the Documentation site for your PyFlowOps project, there is some preliminary code that needs to be run
+                if pfo_config.get("name", None) == "documentation":
+                    _pip_cmd = [metadata.python_pip, "install", "-r", os.path.join(self.temp, pfo_config["name"], "requirements.txt")]
+                    _pipresp = subprocess.run(
+                        _pip_cmd,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    if _pipresp.returncode != 0:
+                        spinner.fail(f"Error installing requirements: {_resp.stderr}")
+                        return
+                    
+                    _pycmd = [metadata.python_executable, os.path.join(self.temp, pfo_config["name"], "scripts", "build-docs-src.py")]
+                    _resp = subprocess.run(
+                        _pycmd,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                
+                    if _resp.returncode != 0:
+                        spinner.fail(f"Error building documentation source: {_resp.stderr}")
+                        return
+
                 image, build_logs = client.images.build(
                     path=os.path.join(self.temp, pfo_config["name"]),
                     dockerfile=str(os.path.join(self.temp, pfo_config["name"], _img_data["repo_path"], _img_data["dockerfile"])),

@@ -34,6 +34,12 @@ class MetaData:
         self.rootdir: str = (
             self._cli_root_directory()
         )  # Set the root directory for the CLI -- MAIN CLI CONFIG DIR -- ~/.pfo
+        self.python_executable: str = (
+            os.path.join(self.context_root, ".python", "bin", "python")
+        )  # The Python interpreter to use, default is python3
+        self.python_pip: str = (
+            os.path.join(self.context_root, ".python", "bin", "pip")
+        )  # The Python pip to use, default is python3 -m pip
         self.cli_env: str = os.path.join(self.rootdir, ".env")
         self.shell_scripts_directory: str = self._shell_scripts_directory()
         self.pfo_json_file: str = "pfo.json"  # The PyFlowOps JSON file - configuration for the package to be tracked
