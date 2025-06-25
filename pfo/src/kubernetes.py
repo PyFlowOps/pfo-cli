@@ -50,7 +50,7 @@ spinner = Halo(text_color="blue", spinner="dots")
     "--delete",
     required=False,
     is_flag=True,
-    help=f"Deletes the Kubernetes cluster (Kind) and all associated resources",
+    help=f"Deletes the Kubernetes cluster (Kind) and all associated resources in the local namespace",
 )
 @optgroup.option(
     "--delete-all",
@@ -84,27 +84,28 @@ def k8s(**params: dict) -> None:
         if not os.path.exists(_pubkey) or not os.path.exists(_privkey):
             create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
         
-        _environment = click.prompt(
-            "Select the environment for the Kind cluster",
-            type=click.Choice(["local", "dev", "stg", "prd"], case_sensitive=False),
-            default="local"
-        )
+        # This logic block will allow the user to select the environment for the Kind cluster
+        # Currently, local is the only supported environment, but this can be extended in the future
+        # _environment = click.prompt(
+        #     "Select the environment for the Kind cluster",
+        #     type=click.Choice(["local", "dev", "stg", "prd"], case_sensitive=False),
+        #     default="local"
+        # )
 
-        #create_kind_cluster(env=_environment) # Create the Kind cluster for local development
-        cluster = Cluster(env=_environment)
+        cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
         exit()
 
     if params.get("delete", False):
-        print("UNDER CONSTRUCTION - Deleting the Kubernetes cluster...")
-        print(params)
+        # Deletes the Kind cluster and all associated resources in the local namespace
+        Cluster.delete()
 
     if params.get("delete_all", False):
         # Deletes all Kind clusters and associated resources
         Cluster.delete_all()
     
     if params.get("info", False):
-        print(params)
+        Cluster.cluster_info()
 
     if params.get("update", False):
         cluster = Cluster(env="local")
@@ -159,6 +160,29 @@ class Cluster():
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to delete Kind clusters: {e}")
             return
+
+    @staticmethod
+    @Halo(text="Deleting Kind Cluster - local Namespace...\n\n", spinner="dots")
+    def delete() -> None:
+        """Deletes the Kubernetes cluster."""
+        _cmd = ["kind delete cluster --name local"]
+        try:
+            subprocess.run(_cmd, shell=True, check=True, capture_output=True, text=True)
+            spinner.succeed("All Kind clusters deleted successfully!")
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to delete Kind clusters: {e}")
+            return
+    
+    @staticmethod
+    def cluster_info() -> None:
+        print("\n") # This is here for a line break in the console output
+        try:
+            res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-local"], check=True)
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to retrieve Kind cluster info: {e}")
+            return
+
+        print("\n") # This is here for a line break in the console output
 
     @Halo(text="Updating Kind Cluster...\n\n", spinner="dots")
     def update(self) -> None:
@@ -416,11 +440,13 @@ class Cluster():
             spinner.fail("Failed to create Kind cluster.")
 
     def __cluster_info(self) -> None:
+        print("\n") # This is here for a line break in the console output
         try:
             res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-{self.env}"], check=True)
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to retrieve Kind cluster info: {e}")
             return
+        print("\n")
         
     def __set_context(self) -> None:
         res = subprocess.run(["kubectl", "config", "set-context", "--current", f"--namespace={self.env}"], check=True, capture_output=True, text=True)
