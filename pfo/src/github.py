@@ -8,8 +8,8 @@ import click
 from click_option_group import optgroup
 from halo import Halo
 from shared.commands import RepoGroup
-from config import MetaData
-from tools import assert_pfo_config_file, print_help_msg
+from src.config import MetaData
+from src.tools import assert_pfo_config_file, print_help_msg
 
 import pfo_doppler
 #from pfo_doppler.config import DopplerConfig, check_doppler_config_exists

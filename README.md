@@ -45,12 +45,3 @@ at the command prompt. Export the environment variable and the continue with run
 the following commands in the README. Once the environment variable is exported to
 your SHELL, navigate to the directory where you would like to create your
 project and run one of the subsequent following commands:
-
-#### CLI - Python Click
-
-```bash
-# Add --checkout `branch_name` to run cookiecutter from a branch
-# Add --directory="path/to/specific/template" to run a specific
- 
-${CCPLOC}/cookiecutter git@github.com:philipdelorenzo/python-cookie-cutters.git --directory="click" --checkout=init
-```

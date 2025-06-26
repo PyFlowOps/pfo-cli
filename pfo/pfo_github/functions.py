@@ -15,7 +15,7 @@ import time
 
 import git
 from halo import Halo
-from config import MetaData
+from src.config import MetaData
 from pfo_doppler import _doppler
 
 # In the pfo_doppler package, the __init__ module has an attribute named _doppler: bool 

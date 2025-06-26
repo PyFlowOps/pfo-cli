@@ -29,3 +29,9 @@ config for the CLI.
 ## Development
 
 Please see the `README.md` in the `@pyflowops/pfo-cli` repo.
+
+## Commands
+
+The command documentation for the `pfo CLI`.
+
+### [k8s](./commands/k8s.md)

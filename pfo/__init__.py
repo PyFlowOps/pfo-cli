@@ -2,7 +2,7 @@
 #
 # Copyright (C) 2025, PyFlowOps, Inc.
 #
-# mns can not be copied and/or distributed without the express
+# pfo can not be copied and/or distributed without the express
 # permission of PyFlowOps, Inc.
 #
 __name__ = "pfo"
@@ -23,16 +23,17 @@ _imp = os.path.dirname(__file__)
 sys.path.append(_imp)
 
 from halo import Halo
-from pfo import config
-from pfo.tools import docstrings, mac_only, network_check
+from src import config
+from src.tools import docstrings, mac_only, network_check
 
 # We want to ensure a network connection before any of the Doppler functions run
 # The following imports require a network connection - this is for better messaging
 network_check()
 
 from pfo.shared.commands import update_cli
-from pfo.github import repo
-from pfo.package import package
+from src.github import repo
+from src.package import package
+from src.kubernetes import k8s
 from applications import app
 
 global metadata
@@ -107,6 +108,7 @@ def cli(ctx, **params: dict) -> None:
 cli.add_command(package)
 cli.add_command(repo)
 cli.add_command(app)
+cli.add_command(k8s)
 
 if __name__ == "__main__":
     cli()

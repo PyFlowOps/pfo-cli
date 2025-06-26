@@ -15,7 +15,7 @@ import time
 
 #import git
 from halo import Halo
-from config import MetaData
+from src.config import MetaData
 from pfo_github.functions import (
     create_repo,
     get_gh_token,

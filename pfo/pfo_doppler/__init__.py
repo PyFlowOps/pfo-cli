@@ -4,7 +4,7 @@ from .auth import DopplerAuth
 from .config import DopplerConfig, check_doppler_config_exists
 from .project import DopplerProject, check_doppler_project_exists
 from .secrets import DopplerSecrets
-
+ 
 _doppler = False
 
 if os.environ.get("DOPPLER_TOKEN"):

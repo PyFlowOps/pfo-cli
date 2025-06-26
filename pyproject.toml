@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pfo"
-version = "0.0.2"
+version = "0.1.0"
 description = "PyFlowOps CLI"
 authors = ["Philip De Lorenzo <philip.delorenzo@gmail.com>"]
 readme = "README.md"
@@ -19,6 +19,8 @@ pytest = "^8.3.5"
 cookiecutter = "^2.6.0"
 doppler-env = "^0.3.1"
 colorama = "^0.4.6"
+python-gnupg = "^0.5.4"
+sopsy = "^1.1.0"
 
 [build-system]
 requires = ["poetry-core"]
