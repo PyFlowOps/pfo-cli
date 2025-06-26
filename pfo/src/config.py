@@ -1,5 +1,6 @@
 import configparser
 import os
+import subprocess
 
 from halo import Halo
 
@@ -34,12 +35,20 @@ class MetaData:
         self.rootdir: str = (
             self._cli_root_directory()
         )  # Set the root directory for the CLI -- MAIN CLI CONFIG DIR -- ~/.pfo
+
+        ### Python and Pip Executables
+        # We need to install a python environment in the root directory
+        resp = subprocess.run(["virtualenv", "--python=python3.12.6", self.rootdir], check=True, capture_output=True)
+        if resp.returncode != 0:
+            raise RuntimeError(f"Failed to create virtual environment: {resp.stderr.decode().strip()}")
+        
         self.python_executable: str = (
             os.path.join(self.context_root, ".python", "bin", "python")
         )  # The Python interpreter to use, default is python3
         self.python_pip: str = (
             os.path.join(self.context_root, ".python", "bin", "pip")
         )  # The Python pip to use, default is python3 -m pip
+
         self.cli_env: str = os.path.join(self.rootdir, ".env")
         self.shell_scripts_directory: str = self._shell_scripts_directory()
         self.pfo_json_file: str = "pfo.json"  # The PyFlowOps JSON file - configuration for the package to be tracked
