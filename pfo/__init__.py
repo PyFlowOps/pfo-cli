@@ -2,7 +2,7 @@
 #
 # Copyright (C) 2025, PyFlowOps, Inc.
 #
-# pfo can not be copied and/or distributed without the express
+# mns can not be copied and/or distributed without the express
 # permission of PyFlowOps, Inc.
 #
 __name__ = "pfo"
@@ -112,3 +112,4 @@ cli.add_command(k8s)
 
 if __name__ == "__main__":
     cli()
+```
