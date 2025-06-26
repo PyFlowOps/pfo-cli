@@ -1,5 +1,6 @@
 import configparser
 import os
+import virtualenv
 
 from halo import Halo
 
@@ -31,15 +32,23 @@ class MetaData:
         self.context_root: str = (
             self._context_root()
         )  # Set the directory in context of THIS file.
+        
+        # Set the root directory for the CLI -- MAIN CLI CONFIG DIR -- ~/.pfo 
         self.rootdir: str = (
             self._cli_root_directory()
-        )  # Set the root directory for the CLI -- MAIN CLI CONFIG DIR -- ~/.pfo
+        )
+
+        ### Python and Pip Executables
+        # We need to install a python environment in the root directory
+        virtualenv.cli_run(["--python=python3.12.6", f"{self.rootdir}/.python"])
+        
         self.python_executable: str = (
-            os.path.join(self.context_root, ".python", "bin", "python")
+            os.path.join(self.rootdir, ".python", "bin", "python")
         )  # The Python interpreter to use, default is python3
         self.python_pip: str = (
-            os.path.join(self.context_root, ".python", "bin", "pip")
+            os.path.join(self.rootdir, ".python", "bin", "pip")
         )  # The Python pip to use, default is python3 -m pip
+
         self.cli_env: str = os.path.join(self.rootdir, ".env")
         self.shell_scripts_directory: str = self._shell_scripts_directory()
         self.pfo_json_file: str = "pfo.json"  # The PyFlowOps JSON file - configuration for the package to be tracked
@@ -62,7 +71,7 @@ class MetaData:
         return os.path.abspath(os.path.join(self.context_root, "scripts"))
 
     def _context_root(self) -> str:
-        """Returns the path to the root directory of the CLI."""
+        """Returns the path to the root directory of the CLI -- REPO ROOT."""
         return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
     def _cli_root_directory(self) -> str:

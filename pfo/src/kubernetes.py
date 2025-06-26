@@ -168,7 +168,7 @@ class Cluster():
         _cmd = ["kind delete cluster --name local"]
         try:
             subprocess.run(_cmd, shell=True, check=True, capture_output=True, text=True)
-            spinner.succeed("All Kind clusters deleted successfully!")
+            spinner.succeed("Kind cluster deleted successfully - local namespace!")
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to delete Kind clusters: {e}")
             return
