@@ -331,7 +331,7 @@ class Cluster():
 
     def __rollout_restart_deployment(self, deployment_name: str) -> None:
         """Rolls out a deployment in the Kubernetes cluster."""
-        _cmd = [f"kubectl rollout restart deployment/{deployment_name} --namespace {self.env}"]
+        _cmd = ["kubectl", "rollout", "restart", f"deployment/{deployment_name}", "--namespace", self.env]
         try:
             subprocess.run(_cmd, check=True, capture_output=True, text=True)
             spinner.succeed(f"Deployment {deployment_name} rolled out successfully!")
