@@ -91,25 +91,33 @@ def k8s(**params: dict) -> None:
         #     type=click.Choice(["local", "dev", "stg", "prd"], case_sensitive=False),
         #     default="local"
         # )
-
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
+        spinner.succeed("Complete!")
         exit()
 
     if params.get("delete", False):
         # Deletes the Kind cluster and all associated resources in the local namespace
         Cluster.delete()
+        spinner.succeed("Complete!")
+        exit()
 
     if params.get("delete_all", False):
         # Deletes all Kind clusters and associated resources
         Cluster.delete_all()
+        spinner.succeed("Complete!")
+        exit()
     
     if params.get("info", False):
         Cluster.cluster_info()
+        spinner.succeed("Complete!")
+        exit()
 
     if params.get("update", False):
         cluster = Cluster(env="local")
         cluster.update()
+        cluster.rollout_restart_deployment() # Rollout restart the deployment in the Kind cluster
+        spinner.succeed("Complete!")
         exit()
 
     if not any(params.values()):
@@ -184,6 +192,30 @@ class Cluster():
 
         print("\n") # This is here for a line break in the console output
 
+    @staticmethod
+    def argocd() -> None:
+        """This function will install ArgoCD in the Kind cluster."""
+        # This will install ArgoCD in the Kind cluster
+        # ArgoCD is a GitOps tool for Kubernetes that allows you to manage your Kubernetes
+        # Create a namespace for ArgoCD
+        _argo_namespace = ["kubectl", "create", "namespace", "argocd"]
+        try:
+            subprocess.run(_argo_namespace, shell=True, check=True, capture_output=True, text=True)
+            spinner.succeed("ArgoCD namespace created successfully!")
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to create ArgoCD namespace: {e}")
+            return
+        
+        # Now we will install ArgoCD in the Kind cluster
+        # This will install ArgoCD in the argocd namespace
+        _argo_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"]
+        try:
+            subprocess.run(_argo_deployment, shell=True, check=True, capture_output=True, text=True)
+            spinner.succeed("ArgoCD installed successfully!")
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to install ArgoCD: {e}")
+            return
+
     @Halo(text="Updating Kind Cluster...\n\n", spinner="dots")
     def update(self) -> None:
         """Updates the Kubernetes cluster."""
@@ -240,7 +272,6 @@ class Cluster():
                     
                     # Let's augment the kustomization.yaml file with the docker image
                     for _iname, idata in pfo_config["docker"].items():
-                        #_kdata["images"].append({"name": pfo_config["docker"][_iname]["image"], "newName": f"{pfo_config['docker'][_iname]['image'].split('/')[-1]}", "newTag": self.env})
                         _kdata["images"].append(
                             {
                                 "name": pfo_config["docker"][_iname]["image"],
@@ -329,14 +360,34 @@ class Cluster():
         
         spinner.info(f"Only images with the ':local' tag can be loaded into Kind clusters. - disregarding tag: {image_name.split(':')[-1]}")
 
-    def __rollout_restart_deployment(self, deployment_name: str) -> None:
+    def rollout_restart_deployment(self) -> None:
         """Rolls out a deployment in the Kubernetes cluster."""
-        _cmd = ["kubectl", "rollout", "restart", f"deployment/{deployment_name}", "--namespace", self.env]
+        _deps = self.__get_deployments_list()  # Get the list of deployments in the cluster
+        if not _deps:
+            spinner.fail("No deployments found in the cluster. Cannot rollout restart.")
+            return
+        
+        for dep_name in _deps:
+            _cmd = ["kubectl", "rollout", "restart", "deployment", dep_name, "--namespace", self.env]
+            time.sleep(5)  # Wait for a few seconds before rolling out the deployment
+            spinner.start(f"Rolling out deployment {dep_name} in the {self.env} namespace...\n\n")
+            try:
+                subprocess.run(_cmd, check=True, capture_output=True, text=True)
+                spinner.succeed(f"Deployment {dep_name} rolled out successfully!")
+            except subprocess.CalledProcessError as e:
+                spinner.fail(f"Failed to rollout deployment {dep_name}: {e}")
+
+    def __get_deployments_list(self) -> list|None:
+        """Gets the deployments in the Kubernetes cluster."""
+        _cmd = ["kubectl", "get", "deployments", "--namespace", self.env, "-o", "json"]
         try:
-            subprocess.run(_cmd, check=True, capture_output=True, text=True)
-            spinner.succeed(f"Deployment {deployment_name} rolled out successfully!")
+            res = subprocess.run(_cmd, check=True, capture_output=True, text=True)
+            _alldata = json.loads(res.stdout)
+            _deps = [i["metadata"]["name"] for i in _alldata["items"]]
         except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to rollout deployment {deployment_name}: {e}")
+            spinner.fail(f"Failed to get deployments: {e}")
+        
+        return _deps if _deps else None
 
     def __clone_repo(self, repo_url: str, local_path: str) -> None:
         """Clones the repository to the local path."""
@@ -432,7 +483,6 @@ class Cluster():
                     return
 
                 self.__load_image(image_name=f"{_img_data['image']}:local", nodes=_wknodes)  # Load the image to the Kind cluster
-                self.__rollout_restart_deployment(deployment_name=pfo_config["k8s"]["name"]) # Rollout the deployment in the Kind cluster
                 spinner.succeed(f"Docker image {_img_data['image']}:local loaded successfully!")
             except Exception as e:
                 spinner.fail(f"Error: {e}")
@@ -530,7 +580,6 @@ class Cluster():
                 self._repos_with_pfo.update({repo: pfo_content})
         except subprocess.CalledProcessError:
             return None
-
 
 @Halo(text="Creating Encryption Keys...\n", spinner="dots")
 def create_keys():
