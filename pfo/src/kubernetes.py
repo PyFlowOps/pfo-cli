@@ -329,6 +329,15 @@ class Cluster():
         
         spinner.info(f"Only images with the ':local' tag can be loaded into Kind clusters. - disregarding tag: {image_name.split(':')[-1]}")
 
+    def __rollout_restart_deployment(self, deployment_name: str) -> None:
+        """Rolls out a deployment in the Kubernetes cluster."""
+        _cmd = [f"kubectl rollout restart deployment/{deployment_name} --namespace {self.env}"]
+        try:
+            subprocess.run(_cmd, check=True, capture_output=True, text=True)
+            spinner.succeed(f"Deployment {deployment_name} rolled out successfully!")
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to rollout deployment {deployment_name}: {e}")
+
     def __clone_repo(self, repo_url: str, local_path: str) -> None:
         """Clones the repository to the local path."""
         # Let's clone the repo to a temporary directory
@@ -381,16 +390,32 @@ class Cluster():
                     if _resp.returncode != 0:
                         spinner.fail(f"Error building documentation source: {_resp.stderr}")
                         return
+                    
+                    # For the documentation site, we need to build the release notes to the site
+                    _rncmd = [metadata.python_executable, os.path.join(self.temp, pfo_config["name"], "docs", "scripts", "release-notes.py")]
+                    _rnresp = subprocess.run(
+                        _rncmd,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+
+                    #_rndata = open(os.path.join(self.temp, pfo_config["name"], "docs", "src", "about", "release-notes.md"), "r").read()
+                    if _rnresp.returncode != 0:
+                        spinner.fail(f"Error building release notes: {_rnresp.stderr}")
+                        return
 
                 image, build_logs = client.images.build(
                     path=os.path.join(self.temp, pfo_config["name"]),
                     dockerfile=str(os.path.join(self.temp, pfo_config["name"], _img_data["repo_path"], _img_data["dockerfile"])),
                     tag=f"{_img_data['image']}:local",
                     rm=True,
-                    pull=True
+                    pull=True,
+                    nocache=True,
+                    buildargs={"CACHE_BREAKER": str(time.time())}
                 )
                 _img = client.images.get(f"{_img_data['image']}:local")
-                _img.tag(f"{_img_data['image']}:{_version}") # Tag the image with the version
+                _img.tag(f"{_img_data['image']}", tag=_version, force=True) # Tag the image with the version
 
                 spinner.succeed(f"Docker image {_img_data['image']}:local built successfully!")
             except Exception as e:
@@ -407,6 +432,7 @@ class Cluster():
                     return
 
                 self.__load_image(image_name=f"{_img_data['image']}:local", nodes=_wknodes)  # Load the image to the Kind cluster
+                self.__rollout_restart_deployment(deployment_name=pfo_config["k8s"]["name"]) # Rollout the deployment in the Kind cluster
                 spinner.succeed(f"Docker image {_img_data['image']}:local loaded successfully!")
             except Exception as e:
                 spinner.fail(f"Error: {e}")
