@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pfo"
-version = "0.1.4"
+version = "0.1.5"
 description = "PyFlowOps CLI"
 authors = ["Philip De Lorenzo <philip.delorenzo@gmail.com>"]
 readme = "README.md"

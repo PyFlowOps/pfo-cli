@@ -5,6 +5,7 @@ offers a method of standing up a Kind cluster for local development and testing 
 import click
 import gnupg
 import os
+import base64
 import json
 import time
 import docker
@@ -80,6 +81,7 @@ def k8s(**params: dict) -> None:
     _pubkey = os.path.join(os.path.expanduser("~"), ".pfo", "keys", "pfo.pub")
     _privkey = os.path.join(os.path.expanduser("~"), ".pfo", "keys", "pfo")
     
+    # These are the keys that will be used for encryption and decryption of the project data
     if params.get("create", False):
         if not os.path.exists(_pubkey) or not os.path.exists(_privkey):
             create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
@@ -91,9 +93,11 @@ def k8s(**params: dict) -> None:
         #     type=click.Choice(["local", "dev", "stg", "prd"], case_sensitive=False),
         #     default="local"
         # )
-        Cluster.argocd() # Install ArgoCD in the Kind cluster
+
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
+        Cluster.argocd() # Install ArgoCD in the Kind cluster
+        Cluster.argocd_image_updater() # Install ArgoCD Image Updater in the Kind cluster
         spinner.succeed("Complete!")
         exit()
 
@@ -123,7 +127,6 @@ def k8s(**params: dict) -> None:
 
     if not any(params.values()):
         print_help_msg(k8s)
-
 
 class Cluster():
     """Class for managing Kubernetes clusters (Kind)."""
@@ -201,18 +204,38 @@ class Cluster():
         # Create a namespace for ArgoCD
         _argo_namespace = ["kubectl", "create", "namespace", "argocd"]
         try:
-            subprocess.run(_argo_namespace, shell=True, check=True, capture_output=True, text=True)
-            spinner.succeed("ArgoCD namespace created successfully!")
+            _resp = subprocess.run(_argo_namespace, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to create ArgoCD namespace: {e}")
             return
         
+        if _resp.returncode != 0:
+            spinner.fail(f"Failed to create ArgoCD namespace: {_resp.stderr}")
+            return
+        
+        spinner.succeed("ArgoCD namespace created successfully!")
+
         # Now we will install ArgoCD in the Kind cluster
         # This will install ArgoCD in the argocd namespace
         _argo_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"]
         try:
-            subprocess.run(_argo_deployment, shell=True, check=True, capture_output=True, text=True)
-            spinner.succeed("ArgoCD installed successfully!")
+            _resp = subprocess.run(_argo_deployment, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to install ArgoCD: {e}")
+            return
+        
+        if _resp.returncode != 0:
+            spinner.fail(f"Failed to install ArgoCD: {_resp.stderr}")
+            return
+
+        spinner.succeed("ArgoCD deployment installed successfully!")
+
+    @staticmethod
+    def argocd_image_updater() -> None:
+        """This function will update the ArgoCD image in the Kind cluster."""
+        _imupd_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/manifests/install.yaml"]
+        try:
+            _resp = subprocess.run(_imupd_deployment, check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to install ArgoCD: {e}")
             return
@@ -281,12 +304,20 @@ class Cluster():
                             }
                         )
 
+                    # We need to add this repo's manifests to the kustomization.yaml file
+                    if pfo_config.get("k8s", {}).get("manifest_path", None):
+                        _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
+                        
+                        _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env) # Get the source path for the manifests
+                        _dest = os.path.join(self._k8s_dir, self.env, pfo_config["k8s"]["name"])
+                        self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
+
                     # Now we will write the kustomization.yaml file back to the disk
                     with open(os.path.join(self._k8s_dir, self.env, "kustomization.yaml"), "w") as kf:
                         yaml.dump(_kdata, kf, default_flow_style=False)
             else:
                 spinner.warn(f"No docker image(s) found for repo {repo}. Skipping...")
-
+            
         # Now we will build the Kubernetes manifests using kustomize and apply them to the Kind cluster
         self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
 
@@ -342,6 +373,23 @@ class Cluster():
             spinner.fail(f"Command {cmd} failed!")
             spinner.fail(f"ERROR -  {e}")
 
+    def rollout_restart_deployment(self) -> None:
+        """Rolls out a deployment in the Kubernetes cluster."""
+        _deps = self.__get_deployments_list()  # Get the list of deployments in the cluster
+        if not _deps:
+            spinner.fail("No deployments found in the cluster. Cannot rollout restart.")
+            return
+        
+        for dep_name in _deps:
+            _cmd = ["kubectl", "rollout", "restart", "deployment", dep_name, "--namespace", self.env]
+            time.sleep(5)  # Wait for a few seconds before rolling out the deployment
+            spinner.start(f"Rolling out deployment {dep_name} in the {self.env} namespace...\n\n")
+            try:
+                subprocess.run(_cmd, check=True, capture_output=True, text=True)
+                spinner.succeed(f"Deployment {dep_name} rolled out successfully!")
+            except subprocess.CalledProcessError as e:
+                spinner.fail(f"Failed to rollout deployment {dep_name}: {e}")
+
     def kustomize_build(self) -> None:
         _cmd = [f"kustomize build {os.path.join(metadata.rootdir, "k8s", self.env)} | kubectl apply -f -"]
         self.run_command(_cmd) # Builds the Kubernetes manifests using kustomize and applies them to the cluster
@@ -361,22 +409,16 @@ class Cluster():
         
         spinner.info(f"Only images with the ':local' tag can be loaded into Kind clusters. - disregarding tag: {image_name.split(':')[-1]}")
 
-    def rollout_restart_deployment(self) -> None:
-        """Rolls out a deployment in the Kubernetes cluster."""
-        _deps = self.__get_deployments_list()  # Get the list of deployments in the cluster
-        if not _deps:
-            spinner.fail("No deployments found in the cluster. Cannot rollout restart.")
+    def __copy_manifests(self, source: str, destination: str) -> None:
+        """Copies the Kubernetes manifests from the source directory to the destination directory."""
+        if not os.path.exists(source):
+            spinner.fail(f"Source directory {source} does not exist.")
             return
         
-        for dep_name in _deps:
-            _cmd = ["kubectl", "rollout", "restart", "deployment", dep_name, "--namespace", self.env]
-            time.sleep(5)  # Wait for a few seconds before rolling out the deployment
-            spinner.start(f"Rolling out deployment {dep_name} in the {self.env} namespace...\n\n")
-            try:
-                subprocess.run(_cmd, check=True, capture_output=True, text=True)
-                spinner.succeed(f"Deployment {dep_name} rolled out successfully!")
-            except subprocess.CalledProcessError as e:
-                spinner.fail(f"Failed to rollout deployment {dep_name}: {e}")
+        if not os.path.exists(destination):
+            os.makedirs(destination)
+        
+        shutil.copytree(source, destination)
 
     def __get_deployments_list(self) -> list|None:
         """Gets the deployments in the Kubernetes cluster."""
@@ -516,6 +558,29 @@ class Cluster():
         else:
             spinner.fail("Failed to create Kind cluster.")
 
+    def __get_argocd_default_password(self) -> str|None:
+        _p1_cmd = ["kubectl", "-n", "argocd", "get", "secret", "argocd-initial-admin-secret", "-o", "jsonpath='{.data.password}'"]
+        _resp = subprocess.run(_p1_cmd, check=True, capture_output=True, text=True)
+        if _resp.returncode != 0:
+            spinner.fail(f"Failed to get ArgoCD initial admin secret: {_resp.stderr}")
+            return
+        
+        if type(_resp) == bytes:
+            _tempdata = _resp.stdout.decode("utf-8")
+        else:
+            _tempdata = _resp.stdout
+        
+        # Let's decode the string
+        _data = base64.b64decode(_tempdata)
+
+        if type(_data) == bytes:
+            return _data.decode("utf-8")
+        
+        if type(_data) == str:
+            return _data
+        
+        return None
+        
     def __cluster_info(self) -> None:
         print("\n") # This is here for a line break in the console output
         try:
@@ -523,7 +588,11 @@ class Cluster():
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to retrieve Kind cluster info: {e}")
             return
+        
         print("\n")
+        print("ArgoCD URL: http://localhost:8080")
+        print("ArgoCD Username: admin")
+        print(f"ArgoCD Password: {self.__get_argocd_default_password()}")
         
     def __set_context(self) -> None:
         res = subprocess.run(["kubectl", "config", "set-context", "--current", f"--namespace={self.env}"], check=True, capture_output=True, text=True)
