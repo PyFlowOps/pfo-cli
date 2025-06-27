@@ -415,7 +415,7 @@ class Cluster():
                     buildargs={"CACHE_BREAKER": str(time.time())}
                 )
                 _img = client.images.get(f"{_img_data['image']}:local")
-                _img.tag(f"{_img_data['image']}", tag=_version, force=True) # Tag the image with the version
+                _img.tag(f"{_img_data['image']}", tag=_version) # Tag the image with the version
 
                 spinner.succeed(f"Docker image {_img_data['image']}:local built successfully!")
             except Exception as e:
