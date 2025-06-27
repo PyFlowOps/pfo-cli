@@ -91,6 +91,7 @@ def k8s(**params: dict) -> None:
         #     type=click.Choice(["local", "dev", "stg", "prd"], case_sensitive=False),
         #     default="local"
         # )
+        Cluster.argocd() # Install ArgoCD in the Kind cluster
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
         spinner.succeed("Complete!")
