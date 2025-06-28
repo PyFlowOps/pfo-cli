@@ -121,6 +121,7 @@ jobs:
           else
             echo "Current Version: ${{ needs.call-versions.outputs.latest_version }}"
           fi
+        shell: bash
 
   # This will set our version number of the draft release based on the pyproject.toml file, and if there
   # is a current version, it will be used as the base for the next release.
