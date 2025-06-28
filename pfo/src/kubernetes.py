@@ -6,6 +6,7 @@ import click
 import gnupg
 import os
 import base64
+import binascii
 import json
 import time
 import docker
@@ -98,6 +99,8 @@ def k8s(**params: dict) -> None:
         cluster.create() # Create the Kind cluster
         Cluster.argocd() # Install ArgoCD in the Kind cluster
         Cluster.argocd_image_updater() # Install ArgoCD Image Updater in the Kind cluster
+        time.sleep(45) # Wait for ArgoCD to be fully deployed
+        Cluster.cluster_info() # Display the cluster information
         spinner.succeed("Complete!")
         exit()
 
@@ -153,7 +156,6 @@ class Cluster():
         if self.__cluster_exists() is False: # Check if the Kind cluster already exists
             _cspin.start(f"Creating Kind cluster {self.env}...\n\n")
             self.__create_cluster() # Create the Kind cluster
-            self.__cluster_info() # Get the Kind cluster info
             _cspin.succeed(f"Kind cluster {self.env} created successfully!")
         else:
             _cspin.info(f"Kind cluster {self.env} already exists. Use --update to update the cluster.")
@@ -187,14 +189,19 @@ class Cluster():
     
     @staticmethod
     def cluster_info() -> None:
-        print("\n") # This is here for a line break in the console output
         try:
-            res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-local"], check=True)
+            res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-local"], check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to retrieve Kind cluster info: {e}")
             return
 
-        print("\n") # This is here for a line break in the console output
+        if res.returncode != 0:
+            spinner.fail(f"Failed to retrieve Kind cluster info: {res.stderr}")
+            return
+        
+        print("ArgoCD URL: http://localhost:8080")
+        print("ArgoCD Username: admin")
+        print(f"ArgoCD Password: {Cluster.get_argocd_default_password()}")
 
     @staticmethod
     def argocd() -> None:
@@ -240,6 +247,27 @@ class Cluster():
             spinner.fail(f"Failed to install ArgoCD: {e}")
             return
 
+    @staticmethod
+    def get_argocd_default_password() -> str|None:
+        """Retrieves the default password for the ArgoCD admin user."""
+        _p1_cmd = ["kubectl", "-n", "argocd", "get", "secret", "argocd-initial-admin-secret", "-o", "jsonpath='{.data.password}'"]
+        try:
+            _resp = subprocess.run(_p1_cmd, check=True, capture_output=True, text=True)
+            _data = _resp.stdout.strip()
+            
+            if type(_data) == bytes:
+                _decoded_data = _data.decode("utf-8")
+                _pass = base64.b64decode(_decoded_data).decode("utf-8") # Decode the base64 encoded data
+                return _pass
+            
+            if type(_data) == str:
+                _pass = base64.b64decode(_data).decode("utf-8")  # Remove the single quotes around the data
+                return _pass
+            
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to get ArgoCD initial admin - {e}")
+            return
+    
     @Halo(text="Updating Kind Cluster...\n\n", spinner="dots")
     def update(self) -> None:
         """Updates the Kubernetes cluster."""
@@ -322,11 +350,6 @@ class Cluster():
         self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
 
         spinner.succeed("Kind cluster updated successfully!")
-
-    # UNDER CONSTRUCTION
-    def info(self) -> None:
-        """Displays information about the Kubernetes cluster."""
-        print("Displaying information about the Kubernetes cluster...")
 
     ### Manifests creation/update methods
     def set_configs_and_manifests(self) -> None:
@@ -416,9 +439,15 @@ class Cluster():
             return
         
         if not os.path.exists(destination):
-            os.makedirs(destination)
-        
-        shutil.copytree(source, destination)
+            os.makedirs(destination, exist_ok=True)
+                
+        for item in os.listdir(source):
+            s = os.path.join(source, item)
+            d = os.path.join(destination, item)
+            if os.path.isdir(s):
+                shutil.copytree(s, d) # Recursively copy directories
+            else:
+                shutil.copy2(s, d) # Copy files
 
     def __get_deployments_list(self) -> list|None:
         """Gets the deployments in the Kubernetes cluster."""
@@ -557,42 +586,6 @@ class Cluster():
             spinner.succeed("Kind cluster created successfully!")
         else:
             spinner.fail("Failed to create Kind cluster.")
-
-    def __get_argocd_default_password(self) -> str|None:
-        _p1_cmd = ["kubectl", "-n", "argocd", "get", "secret", "argocd-initial-admin-secret", "-o", "jsonpath='{.data.password}'"]
-        _resp = subprocess.run(_p1_cmd, check=True, capture_output=True, text=True)
-        if _resp.returncode != 0:
-            spinner.fail(f"Failed to get ArgoCD initial admin secret: {_resp.stderr}")
-            return
-        
-        if type(_resp) == bytes:
-            _tempdata = _resp.stdout.decode("utf-8")
-        else:
-            _tempdata = _resp.stdout
-        
-        # Let's decode the string
-        _data = base64.b64decode(_tempdata)
-
-        if type(_data) == bytes:
-            return _data.decode("utf-8")
-        
-        if type(_data) == str:
-            return _data
-        
-        return None
-        
-    def __cluster_info(self) -> None:
-        print("\n") # This is here for a line break in the console output
-        try:
-            res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-{self.env}"], check=True)
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to retrieve Kind cluster info: {e}")
-            return
-        
-        print("\n")
-        print("ArgoCD URL: http://localhost:8080")
-        print("ArgoCD Username: admin")
-        print(f"ArgoCD Password: {self.__get_argocd_default_password()}")
         
     def __set_context(self) -> None:
         res = subprocess.run(["kubectl", "config", "set-context", "--current", f"--namespace={self.env}"], check=True, capture_output=True, text=True)
