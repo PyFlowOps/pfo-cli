@@ -414,8 +414,21 @@ class Cluster():
                 spinner.fail(f"Failed to rollout deployment {dep_name}: {e}")
 
     def kustomize_build(self) -> None:
-        _cmd = [f"kustomize build {os.path.join(metadata.rootdir, "k8s", self.env)} | kubectl apply -f -"]
-        self.run_command(_cmd) # Builds the Kubernetes manifests using kustomize and applies them to the cluster
+        _c1 = ["kustomize", "build", os.path.join(metadata.rootdir, "k8s", self.env)]
+        _c2 = ["kubectl", "apply", "-f", "-"]
+
+        proc1 = subprocess.Popen(_c1, stdout=subprocess.PIPE) # Build the manifests using kustomize
+        proc2 = subprocess.Popen(_c2, stdin=proc1.stdout, stdout=subprocess.PIPE, text=True) # Apply the manifests using kubectl
+        
+        proc1.stdout.close()  # Allow proc1 to receive a SIGPIPE if proc2 exits.
+        
+        _stdout, _stderr = proc2.communicate()  # Wait for the command
+
+        #_cmd = [f"kustomize build {os.path.join(metadata.rootdir, "k8s", self.env)} | kubectl apply -f -"]
+        #_resp = subprocess.run(_cmd, shell=True, capture_output=True, text=True) # Run the command to build and apply the manifests
+        #if _resp.returncode != 0:
+        #    spinner.fail(f"Failed to build and apply Kubernetes manifests: {_resp.stderr}")
+        #    return
 
     def __load_image(self, image_name: str, nodes: str) -> None:
         """Loads a Docker image from the local filesystem to the kind cluster.

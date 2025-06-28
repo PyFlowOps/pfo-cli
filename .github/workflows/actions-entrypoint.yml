@@ -4,14 +4,50 @@ on:
   push:
     # branches to consider in the event; optional, defaults to all
     branches:
-      - "main"
-  
+      - "main" 
+
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
-  initialRelease:
+  check-trigger:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check if should run pipeline
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            if [[ "${{ github.event.pull_request.merged }}" == "true" ]]; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            fi
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            # Check if push is from PR merge
+            response=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/pulls")
+            
+            if echo "$response" | jq -e '.[] | select(.merged_at != null)' > /dev/null; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+  releasePreparation:
+    needs: [check-trigger]
+    if: needs.check-trigger.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -21,15 +57,21 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Authenticate GH CLI
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
       - name: Initial Release (Lone Job)
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Running initial release job..."
           python ${{ github.workspace }}/.github/workflows/src/initial_release.py
 
   dataReportJob:
     runs-on: ubuntu-latest
+    outputs:
+      is_pr_merge: ${{ steps.check_pr.outputs.is_pr_merge }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -38,6 +80,20 @@ jobs:
         run: |
           echo "Running data job..."
           echo "Job Type: ${{ github.event_name }}"
+
+      - name: Check if commit is from merged PR
+        id: check_pr
+        run: |
+          # Get associated PRs for this commit
+          response=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/${{ github.sha }}/pulls")
+          
+          # Check if any PRs were returned and if they're merged
+          if echo "$response" | jq -e '.[] | select(.merged_at != null)' > /dev/null; then
+            echo "is_pr_merge=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_pr_merge=false" >> $GITHUB_OUTPUT
+          fi
 
   # This will run our unit tests on every push to the repository
   call-unit-tests:
@@ -50,7 +106,7 @@ jobs:
     uses: ./.github/workflows/dry-versions.yml
     secrets:
       # This is automatically provided by GitHub Actions, so we don't need to specify it in the workflow
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test-versions:
     needs: [call-unit-tests, call-versions]
@@ -59,7 +115,7 @@ jobs:
       - name: Check Versions
         run: |
           echo "Checking versions..."
-          echo "TOML Version: ${{ needs.call-versions.outputs.toml_version }}"
+          echo "Package Version: ${{ needs.call-versions.outputs.package_version }}"
           if [ "${{ needs.call-versions.outputs.latest_version }}" == "" ]; then
             echo "No Release Found!"
           else
@@ -72,12 +128,20 @@ jobs:
   set-release-version:
     needs: [call-versions, test-versions, call-unit-tests]
     uses: ./.github/workflows/dry-draft-version.yml
+    secrets:
+      # This is automatically provided by GitHub Actions, so we don't need to specify it in the workflow
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   update_release_draft:
     uses: ./.github/workflows/dry-release-drafter.yml
-    needs: [initialRelease, set-release-version]
+    needs: [set-release-version, releasePreparation]
     with:
       draft_version: ${{ needs.set-release-version.outputs.draft_version }}
     secrets:
       # This is automatically provided by GitHub Actions, so we don't need to specify it in the workflow
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_and_deploy:
+    if: needs.dataReportJob.outputs.is_pr_merge == 'no_run'
+    needs: [update_release_draft, releasePreparation, dataReportJob]
+    uses: ./.github/workflows/dry-build-and-deploy.yml
