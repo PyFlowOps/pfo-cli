@@ -5,6 +5,11 @@ on:
         description: 'The draft release version'
         value: ${{ jobs.versions.outputs.draft_version }}
 
+    secrets:
+      GH_TOKEN:
+        description: 'GitHub Token for authentication'
+        required: true
+
 jobs:
   versions:
     name: Package Version (Local)
@@ -27,7 +32,7 @@ jobs:
       - name: Draft Release Version
         id: draft-version
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           #!/bin/bash
           echo "Getting draft release version"
