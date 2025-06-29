@@ -203,6 +203,7 @@ def register() -> None:
     # Let's add the kubernetes data to the registration
     _data["k8s"] = {}
     _data["k8s"]["name"] = _name
+    _data["k8s"]["manifest_path"] = "manifests" if os.path.exists(os.path.join(_path, "manifests")) else ""
     _data["k8s"]["labels"] = {}
     _data["k8s"]["labels"]["app.kubernetes.io/name"] = _name
     _data["k8s"]["deploy"] = False  # Default to not deploy
