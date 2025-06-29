@@ -63,7 +63,6 @@ spinner = Halo(text_color="blue", spinner="dots")
 @optgroup.option(
     "--update",
     required=False,
-    is_flag=True,
     help=f"This updates the Kubernetes cluster (Kind) to the latest manifests",
 )
 @optgroup.group(f"Kubernetes Cluster Data", help=f"Kubnernetes (Kind) cluster information")
@@ -93,7 +92,6 @@ def k8s(**params: dict) -> None:
         #     "Select the environment for the Kind cluster",
         #     type=click.Choice(["local", "dev", "stg", "prd"], case_sensitive=False),
         #     default="local"
-        # )
 
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
@@ -199,29 +197,15 @@ class Cluster():
             spinner.fail(f"Failed to retrieve Kind cluster info: {res.stderr}")
             return
         
+        print("\n")
         print("ArgoCD URL: http://localhost:8080")
         print("ArgoCD Username: admin")
         print(f"ArgoCD Password: {Cluster.get_argocd_default_password()}")
+        print("\n")
 
     @staticmethod
     def argocd() -> None:
         """This function will install ArgoCD in the Kind cluster."""
-        # This will install ArgoCD in the Kind cluster
-        # ArgoCD is a GitOps tool for Kubernetes that allows you to manage your Kubernetes
-        # Create a namespace for ArgoCD
-        _argo_namespace = ["kubectl", "create", "namespace", "argocd"]
-        try:
-            _resp = subprocess.run(_argo_namespace, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to create ArgoCD namespace: {e}")
-            return
-        
-        if _resp.returncode != 0:
-            spinner.fail(f"Failed to create ArgoCD namespace: {_resp.stderr}")
-            return
-        
-        spinner.succeed("ArgoCD namespace created successfully!")
-
         # Now we will install ArgoCD in the Kind cluster
         # This will install ArgoCD in the argocd namespace
         _argo_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"]
@@ -316,33 +300,36 @@ class Cluster():
                 self.__build_and_load_docker_images(pfo_config=pfo_config)
 
                 # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
+                kubernetes_dirs = ["base", "overlays"]
                 if pfo_config.get("k8s", {}).get("deploy", False):
-                    _kustomize_config = yaml.safe_load(open(os.path.join(self._k8s_dir, self.env, "kustomization.yaml")))
-                    with open(os.path.join(self._k8s_dir, self.env, "kustomization.yaml"), "r") as kf:
-                        # Since the deploy key is true, we will add the docker image to the kustomization.yaml file
-                        _kdata = yaml.safe_load(kf)
+                    for _kdir in kubernetes_dirs:
+                        #_kustomize_config = yaml.safe_load(open(os.path.join(self._k8s_dir, self.env, "kustomization.yaml")))
+                        with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "r") as kf:
+                            # Since the deploy key is true, we will add the docker image to the kustomization.yaml file
+                            _kdata = yaml.safe_load(kf)
                     
-                    # Let's augment the kustomization.yaml file with the docker image
-                    for _iname, idata in pfo_config["docker"].items():
-                        _kdata["images"].append(
-                            {
-                                "name": pfo_config["docker"][_iname]["image"],
-                                "newName": f"{pfo_config['docker'][_iname]['image']}",
-                                "newTag": self.env
-                            }
-                        )
+                        # Let's augment the kustomization.yaml file with the docker image
+                        for _iname, idata in pfo_config["docker"].items():
+                            if _kdata.get("images", None):
+                                _kdata["images"].append(
+                                    {
+                                        "name": pfo_config["docker"][_iname]["image"],
+                                        "newName": f"{pfo_config['docker'][_iname]['image']}",
+                                        "newTag": self.env
+                                    }
+                                )
 
-                    # We need to add this repo's manifests to the kustomization.yaml file
-                    if pfo_config.get("k8s", {}).get("manifest_path", None):
-                        _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
-                        
-                        _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env) # Get the source path for the manifests
-                        _dest = os.path.join(self._k8s_dir, self.env, pfo_config["k8s"]["name"])
-                        self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
+                        # We need to add this repo's manifests to the kustomization.yaml file
+                        if pfo_config.get("k8s", {}).get("manifest_path", None):
+                            _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
+                            
+                            _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env, _kdir) # Get the source path for the manifests
+                            _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
+                            self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
 
-                    # Now we will write the kustomization.yaml file back to the disk
-                    with open(os.path.join(self._k8s_dir, self.env, "kustomization.yaml"), "w") as kf:
-                        yaml.dump(_kdata, kf, default_flow_style=False)
+                        # Now we will write the kustomization.yaml file back to the disk
+                        with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
+                            yaml.dump(_kdata, kf, default_flow_style=False)
             else:
                 spinner.warn(f"No docker image(s) found for repo {repo}. Skipping...")
             
@@ -414,21 +401,58 @@ class Cluster():
                 spinner.fail(f"Failed to rollout deployment {dep_name}: {e}")
 
     def kustomize_build(self) -> None:
-        _c1 = ["kustomize", "build", os.path.join(metadata.rootdir, "k8s", self.env)]
-        _c2 = ["kubectl", "apply", "-f", "-"]
+        # Let's install the base manifests using kustomize and kubectl
+        __base = os.path.join(metadata.rootdir, "k8s", self.env, "base")
+        __overlays = os.path.join(metadata.rootdir, "k8s", self.env, "overlays")
 
-        proc1 = subprocess.Popen(_c1, stdout=subprocess.PIPE) # Build the manifests using kustomize
-        proc2 = subprocess.Popen(_c2, stdin=proc1.stdout, stdout=subprocess.PIPE, text=True) # Apply the manifests using kubectl
-        
-        proc1.stdout.close()  # Allow proc1 to receive a SIGPIPE if proc2 exits.
-        
-        _stdout, _stderr = proc2.communicate()  # Wait for the command
+        _c1 = [f"kustomize build {__base} | kubectl apply -f -"]  # Build the base manifests using kustomize
 
-        #_cmd = [f"kustomize build {os.path.join(metadata.rootdir, "k8s", self.env)} | kubectl apply -f -"]
-        #_resp = subprocess.run(_cmd, shell=True, capture_output=True, text=True) # Run the command to build and apply the manifests
-        #if _resp.returncode != 0:
-        #    spinner.fail(f"Failed to build and apply Kubernetes manifests: {_resp.stderr}")
-        #    return
+        try:
+            _resp = subprocess.run(_c1, shell=True, check=True, capture_output=True, text=True)  # Run the command to build the base manifests
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to build base Kubernetes manifests: {e}")
+            return
+            
+        if _resp.returncode != 0:
+            spinner.fail(f"Failed to build base Kubernetes manifests: {_resp.stderr}")
+            return
+
+        # Now we will wait for the CRD to be established
+        _max = 10
+        _attempt = 0
+        _crdcmd = ["kubectl", "wait", "--for=condition=established", "crd/appprojects.argoproj.io", "--timeout=60s"]
+        while _attempt < _max:
+            try:
+                _resp = subprocess.run(_crdcmd, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                _attempt += 1
+                spinner.info(f"Attempt {_attempt} to wait for CRD to be established...")
+                time.sleep(5)  # Wait for 5 seconds before retrying
+
+            if _resp.returncode == 0:
+                spinner.succeed("CRD established successfully!")
+                time.sleep(3) # Wait for a few seconds to ensure the CRD is established
+                break
+            else:
+                if _attempt == _max - 1:
+                    spinner.fail(f"Failed to establish CRD: {_resp.stderr}; Max attempts reached. Exiting...")
+                    return
+        
+        _o1 = [f"kustomize build {__overlays} | kubectl apply -f -"]  # Build the base manifests using kustomize
+        
+        if not os.path.exists(__overlays):
+            spinner.fail(f"Overlays directory {__overlays} does not exist. Cannot build overlays manifests.")
+            return
+        
+        try:
+            _resp = subprocess.run(_o1, shell=True, check=True, capture_output=True, text=True)  # Run the command to build the base manifests
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to build overlays Kubernetes manifests: {e} -- {_resp.stderr}")
+            return
+            
+        if _resp.returncode != 0:
+            spinner.fail(f"Error building overlays Kubernetes manifests: {_resp.stderr}")
+            return
 
     def __load_image(self, image_name: str, nodes: str) -> None:
         """Loads a Docker image from the local filesystem to the kind cluster.
