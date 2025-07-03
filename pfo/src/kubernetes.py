@@ -23,7 +23,8 @@ from halo import Halo
 
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
-from pfo.shared import ssh
+#from pfo.shared import ssh
+from pfo import argocd
 
 from src.tools import (
     assert_pfo_config_file,
@@ -90,11 +91,11 @@ def k8s(**params: dict) -> None:
             create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
         
         # We need to create SSH keys for the ArgoCD SSH secret - this is used to access private repositories
-        ssh.generate_ssh_keypair() # This creates the needed SSH keys for the ArgoCD SSH secret - ~/.pfo/argocd
+        argocd.keys.generate_ssh_keypair() # This creates the needed SSH keys for the ArgoCD SSH secret - ~/.pfo/argocd
         
         # Now, if the SSH key is not present in Github as an SSH Deploy Key, we will add it
-        if not ssh.check_ssh_key_exists():
-            ssh.add_ssh_key_to_github()
+        if not argocd.keys.check_ssh_key_exists():
+            argocd.keys.add_ssh_key_to_github()
 
         # This logic block will allow the user to select the environment for the Kind cluster
         # Currently, local is the only supported environment, but this can be extended in the future
@@ -145,6 +146,7 @@ class Cluster():
         self.env: str = env
         self.temp: str = "/tmp/.pfo"
         self._k8s_dir: str = os.path.join(metadata.rootdir, "k8s") # Directory for the Kubernetes manifests
+        self.argocd_dir: str = os.path.join(metadata.rootdir, "argocd") # Directory for the ArgoCD manifests
         self._kind_config: str = os.path.join(self._k8s_dir, "kind-config.yaml")
         self._repos_with_pfo: dict[str, Any] = {} # Dictionary to hold repos with pfo.json configs
         self.epoch_tag: str = str(time.time()).split(".")[0] # Epoch timestamp for tagging resources
@@ -332,8 +334,11 @@ class Cluster():
                         # We need to add this repo's manifests to the kustomization.yaml file
                         # If the repo is not managed by ArgoCD, we will add the manifest path to the kustomization.yaml file
                         # If the repo is managed by ArgoCD, we will not add the manifest path to the kustomization.yaml file
+                        if pfo_config.get("k8s", {}).get("argocd", None).get("managed", False):
+                            # We will add the private SSH key to the kustomization.yaml file
+                            argocd.manifest.add_ssh_privkey_to_secret_manifest(manifest_path="") # Add the private key to the secret
+
                         if not pfo_config.get("k8s", {}).get("argocd", None).get("managed", False):
-                            self.__add_private_key_to_secret() # Add the private key to the secret
                             if pfo_config.get("k8s", {}).get("manifest_path", None):
                                 _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
                                 
