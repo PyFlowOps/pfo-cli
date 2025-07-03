@@ -15,8 +15,6 @@ _secret_manifests = [os.path.join(_manifest_path, i) for i in os.listdir(_manife
 with open(_private_ssh_key, "r") as f:
     _priv_contents = f.read().strip().strip("\n")
 
-print(_priv_contents)
-
 def add_ssh_privkey_to_secret_manifest() -> None:
     """Adds the SSH private key to the ArgoCD secret.
     
