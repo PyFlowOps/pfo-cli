@@ -336,7 +336,7 @@ class Cluster():
                         # If the repo is managed by ArgoCD, we will not add the manifest path to the kustomization.yaml file
                         if pfo_config.get("k8s", {}).get("argocd", None).get("managed", False):
                             # We will add the private SSH key to the kustomization.yaml file
-                            argocd.manifest.add_ssh_privkey_to_secret_manifest(manifest_path="") # Add the private key to the secret
+                            argocd.manifest.add_ssh_privkey_to_secret_manifest() # Add the private key to the secret
 
                         if not pfo_config.get("k8s", {}).get("argocd", None).get("managed", False):
                             if pfo_config.get("k8s", {}).get("manifest_path", None):
