@@ -23,6 +23,7 @@ from halo import Halo
 
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
+from pfo.shared import ssh
 
 from src.tools import (
     assert_pfo_config_file,
@@ -78,6 +79,8 @@ def k8s(**params: dict) -> None:
 
     This section will begin the process of creating a new package, updating the package (version), or releasing the package.
     """
+    
+    # GPG keys for encryption and decryption of the project data
     _pubkey = os.path.join(os.path.expanduser("~"), ".pfo", "keys", "pfo.pub")
     _privkey = os.path.join(os.path.expanduser("~"), ".pfo", "keys", "pfo")
     
@@ -86,6 +89,13 @@ def k8s(**params: dict) -> None:
         if not os.path.exists(_pubkey) or not os.path.exists(_privkey):
             create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
         
+        # We need to create SSH keys for the ArgoCD SSH secret - this is used to access private repositories
+        ssh.generate_ssh_keypair() # This creates the needed SSH keys for the ArgoCD SSH secret - ~/.pfo/argocd
+        
+        # Now, if the SSH key is not present in Github as an SSH Deploy Key, we will add it
+        if not ssh.check_ssh_key_exists():
+            ssh.add_ssh_key_to_github()
+
         # This logic block will allow the user to select the environment for the Kind cluster
         # Currently, local is the only supported environment, but this can be extended in the future
         # _environment = click.prompt(
@@ -320,16 +330,20 @@ class Cluster():
                                 )
 
                         # We need to add this repo's manifests to the kustomization.yaml file
-                        if pfo_config.get("k8s", {}).get("manifest_path", None):
-                            _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
-                            
-                            _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env, _kdir) # Get the source path for the manifests
-                            _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
-                            self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
+                        # If the repo is not managed by ArgoCD, we will add the manifest path to the kustomization.yaml file
+                        # If the repo is managed by ArgoCD, we will not add the manifest path to the kustomization.yaml file
+                        if not pfo_config.get("k8s", {}).get("argocd", None).get("managed", False):
+                            self.__add_private_key_to_secret() # Add the private key to the secret
+                            if pfo_config.get("k8s", {}).get("manifest_path", None):
+                                _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
+                                
+                                _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env, _kdir) # Get the source path for the manifests
+                                _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
+                                self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
 
-                        # Now we will write the kustomization.yaml file back to the disk
-                        with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
-                            yaml.dump(_kdata, kf, default_flow_style=False)
+                            # Now we will write the kustomization.yaml file back to the disk
+                            with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
+                                yaml.dump(_kdata, kf, default_flow_style=False)
             else:
                 spinner.warn(f"No docker image(s) found for repo {repo}. Skipping...")
             
@@ -680,6 +694,10 @@ class Cluster():
                 self._repos_with_pfo.update({repo: pfo_content})
         except subprocess.CalledProcessError:
             return None
+
+    def __add_private_key_to_secret(self) -> None:
+        print("Adding the private key to the Kubernetes secret...")
+        print("UNDER CONSTRUCTION - NOT IMPLEMENTED YET")
 
 @Halo(text="Creating Encryption Keys...\n", spinner="dots")
 def create_keys():

@@ -202,8 +202,16 @@ def register() -> None:
 
     # Let's add the kubernetes data to the registration
     _data["k8s"] = {}
+    _data["k8s"]["argocd"] = {
+        # Setting managed to True will have ArgoCD manage the application.
+        "managed": False,
+        # The overlays directory is where the ArgoCD application manifests are stored.
+        # There SHOULD be a kustomization.yaml file in this directory.
+        "overlays": "manifests/local/overlays"
+    } # This will hold the ArgoCD application data
+
     _data["k8s"]["name"] = _name
-    _data["k8s"]["manifest_path"] = "manifests" if os.path.exists(os.path.join(_path, "manifests")) else ""
+    _data["k8s"]["manifest_path"] = "manifests" if os.path.exists(os.path.join(_path, "manifests")) else "" # Default namespace
     _data["k8s"]["labels"] = {}
     _data["k8s"]["labels"]["app.kubernetes.io/name"] = _name
     _data["k8s"]["deploy"] = False  # Default to not deploy
