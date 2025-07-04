@@ -9,7 +9,7 @@ from cryptography.hazmat.backends import default_backend
 
 _ssh_key_location: str = os.path.expanduser("~/.pfo/argocd")
 _password: str|None = None
-_keyspinner = Halo(spinner="dots")
+_keyspinner = Halo(spinner="dots", text_color="blue")
 
 def get_pub_key() -> str:
     """
@@ -57,7 +57,7 @@ def get_private_key() -> str:
 # Will create the private and public keys in the ~/.pfo/argocd directory.
 # Use these files to configure the ArgoCD SSH credentials - in Github this is done by adding the public key to the repository settings under Deploy Keys.
 # The private key will be used by ArgoCD to authenticate with the Git repository.
-def generate_ssh_keypair(private_key="argocd_github", public_key="argocd_github.pub", password=None):
+def generate_ssh_keypair(private_key="argocd_github", public_key="argocd_github.pub", password=None) -> None:
     """
     Generates an RSA SSH keypair and saves them to specified files.
 
@@ -66,16 +66,15 @@ def generate_ssh_keypair(private_key="argocd_github", public_key="argocd_github.
         public_key_path (str): The file path for the public key.
         password (str, optional): A password to encrypt the private key. If None, the private key will not be encrypted.
     """
-    _keyspinner.start("Generating SSH keypair...")
-    os.makedirs(_ssh_key_location, exist_ok=True)  # Ensure the directory exists
+    os.makedirs(_ssh_key_location, exist_ok=True) # Ensure the directory exists
 
     _pkeypriv = os.path.join(_ssh_key_location, private_key)
     _pkeypub = os.path.join(_ssh_key_location, public_key)
     encryption_algorithm = serialization.NoEncryption()
 
     if os.path.isfile(_pkeypriv) or os.path.isfile(_pkeypub):
-        _keyspinner.fail(f"SSH key files already exist at {_ssh_key_location}. Please remove them before generating new keys.")
-        exit()
+        _keyspinner.info(f"SSH keypair already exists at {_ssh_key_location}...")
+        return
 
     # Generate a new RSA private key
     private_key = ed25519.Ed25519PrivateKey.generate()
@@ -110,7 +109,6 @@ def generate_ssh_keypair(private_key="argocd_github", public_key="argocd_github.
         ) + b"\n")
 
     _keyspinner.succeed(f"SSH keypair generated successfully at {_ssh_key_location}.")
-    exit()
 
 def check_ssh_key_exists():
     """
@@ -149,3 +147,4 @@ def add_ssh_key_to_github():
     except subprocess.CalledProcessError as e:
         _keyspinner.fail(f"Error adding SSH key to Github: {e}")
         exit()
+

@@ -23,7 +23,6 @@ from halo import Halo
 
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
-#from pfo.shared import ssh
 from pfo import argocd
 
 from src.tools import (
@@ -87,6 +86,7 @@ def k8s(**params: dict) -> None:
     
     # These are the keys that will be used for encryption and decryption of the project data
     if params.get("create", False):
+        spinner.start("Creating Kind cluster...\n\n")
         if not os.path.exists(_pubkey) or not os.path.exists(_privkey):
             create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
         
@@ -106,21 +106,20 @@ def k8s(**params: dict) -> None:
 
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
-        Cluster.argocd() # Install ArgoCD in the Kind cluster
-        Cluster.argocd_image_updater() # Install ArgoCD Image Updater in the Kind cluster
-        time.sleep(45) # Wait for ArgoCD to be fully deployed
         Cluster.cluster_info() # Display the cluster information
         spinner.succeed("Complete!")
         exit()
 
     if params.get("delete", False):
         # Deletes the Kind cluster and all associated resources in the local namespace
+        spinner.start("Deleting Kind cluster (local namespace)...\n\n")
         Cluster.delete()
         spinner.succeed("Complete!")
         exit()
 
     if params.get("delete_all", False):
         # Deletes all Kind clusters and associated resources
+        spinner.start("Deleting all Kind clusters...\n\n")
         Cluster.delete_all()
         spinner.succeed("Complete!")
         exit()
@@ -131,6 +130,7 @@ def k8s(**params: dict) -> None:
         exit()
 
     if params.get("update", False):
+        spinner.start("Updating Kind cluster...\n\n")
         cluster = Cluster(env="local")
         cluster.update()
         cluster.rollout_restart_deployment() # Rollout restart the deployment in the Kind cluster
@@ -162,19 +162,16 @@ class Cluster():
     
     def create(self) -> None:
         """Creates the Kubernetes cluster."""
-        _cspin = Halo(text_color="blue", spinner="dots")
         if self.__cluster_exists() is False: # Check if the Kind cluster already exists
-            _cspin.start(f"Creating Kind cluster {self.env}...\n\n")
             self.__create_cluster() # Create the Kind cluster
-            _cspin.succeed(f"Kind cluster {self.env} created successfully!")
+            spinner.succeed(f"Kind cluster {self.env} created successfully!")
         else:
-            _cspin.info(f"Kind cluster {self.env} already exists. Use --update to update the cluster.")
+            spinner.info(f"Kind cluster {self.env} already exists. Use --update to update the cluster.")
 
         self.update() # Update the Kind cluster
         self.__set_context() # Set the Kind cluster context
     
     @staticmethod
-    @Halo(text="Deleting Kind Cluster...\n\n", spinner="dots")
     def delete_all() -> None:
         """Deletes the Kubernetes cluster."""
         _cmd = ["kind get clusters | xargs -t -n1 kind delete cluster --name"]
@@ -186,7 +183,6 @@ class Cluster():
             return
 
     @staticmethod
-    @Halo(text="Deleting Kind Cluster - local Namespace...\n\n", spinner="dots")
     def delete() -> None:
         """Deletes the Kubernetes cluster."""
         _cmd = ["kind delete cluster --name local"]
@@ -264,7 +260,6 @@ class Cluster():
             spinner.fail(f"Failed to get ArgoCD initial admin - {e}")
             return
     
-    @Halo(text="Updating Kind Cluster...\n\n", spinner="dots")
     def update(self) -> None:
         """Updates the Kubernetes cluster."""
         _owner = self.repo_owner
@@ -272,9 +267,9 @@ class Cluster():
             spinner.fail("Cannot continue updating the Kubernetes cluster.")
             return
         
-        Halo(text_color="blue", spinner="dots").info(f"Retrieving repository data from GitHub for Org: {_owner}")
-        _repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
         # Let's get any repo in the Org that has a pfo.json config file in the root directory
+        _repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
+
         if not _repos:
             spinner.info("No repositories found for the organization.")
             return
@@ -285,8 +280,16 @@ class Cluster():
         for repo in _repos:
             self.__get_pfo_configs_for_repo(owner=_owner, repo=repo)
 
+        spinner.info(f"Retrieved repository data from GitHub for Org: {_owner}")
+
         # Now we will create/update the base Kubernetes manifests for the project
         self.set_configs_and_manifests()
+
+        # We need to install the base prerequisites for the Kubernetes cluster
+        self.__install_k8s_prereqs() # Install the base Kubernetes prerequisites - ArgoCD Namespace, etc.
+        Cluster.argocd() # Install ArgoCD in the Kind cluster
+        Cluster.argocd_image_updater() # Install ArgoCD Image Updater in the Kind cluster
+        time.sleep(15) # Wait for ArgoCD to be fully deployed
 
         # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
@@ -315,7 +318,6 @@ class Cluster():
                 kubernetes_dirs = ["base", "overlays"]
                 if pfo_config.get("k8s", {}).get("deploy", False):
                     for _kdir in kubernetes_dirs:
-                        #_kustomize_config = yaml.safe_load(open(os.path.join(self._k8s_dir, self.env, "kustomization.yaml")))
                         with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "r") as kf:
                             # Since the deploy key is true, we will add the docker image to the kustomization.yaml file
                             _kdata = yaml.safe_load(kf)
@@ -331,27 +333,25 @@ class Cluster():
                                     }
                                 )
 
-                        # We need to add this repo's manifests to the kustomization.yaml file
-                        # If the repo is not managed by ArgoCD, we will add the manifest path to the kustomization.yaml file
-                        # If the repo is managed by ArgoCD, we will not add the manifest path to the kustomization.yaml file
-                        if pfo_config.get("k8s", {}).get("argocd", None).get("managed", False):
-                            # We will add the private SSH key to the kustomization.yaml file
-                            argocd.manifest.add_ssh_privkey_to_secret_manifest() # Add the private key to the secret
+                    # We need to add this repo's manifests to the kustomization.yaml file
+                    # If the repo is not managed by ArgoCD, we will add the manifest path to the kustomization.yaml file
+                    # If the repo is managed by ArgoCD, we will not add the manifest path to the kustomization.yaml file
+                    if not pfo_config.get("k8s", {}).get("argocd", {}).get("managed", False):
+                        if pfo_config.get("k8s", {}).get("manifest_path", None):
+                            _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
+                            
+                            _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env, _kdir) # Get the source path for the manifests
+                            _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
+                            self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
 
-                        if not pfo_config.get("k8s", {}).get("argocd", None).get("managed", False):
-                            if pfo_config.get("k8s", {}).get("manifest_path", None):
-                                _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
-                                
-                                _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env, _kdir) # Get the source path for the manifests
-                                _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
-                                self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
+                        # Now we will write the kustomization.yaml file back to the disk
+                        with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
+                            yaml.dump(_kdata, kf, default_flow_style=False)
 
-                            # Now we will write the kustomization.yaml file back to the disk
-                            with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
-                                yaml.dump(_kdata, kf, default_flow_style=False)
-            else:
-                spinner.warn(f"No docker image(s) found for repo {repo}. Skipping...")
-            
+        # Now we will add the ArgoCD SSH private key to the Kubernetes secrets
+        # If the secret is a Repository Secret, we will add the private key to the secretsw
+        argocd.manifest.add_ssh_privkey_to_secret_manifest() # Add the private key to the secrets
+
         # Now we will build the Kubernetes manifests using kustomize and apply them to the Kind cluster
         self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
 
@@ -419,6 +419,22 @@ class Cluster():
             except subprocess.CalledProcessError as e:
                 spinner.fail(f"Failed to rollout deployment {dep_name}: {e}")
 
+    def __install_k8s_prereqs(self) -> None:
+        # Let's install the base manifests using kustomize and kubectl
+        __prereqs = os.path.join(metadata.rootdir, "k8s", self.env, "prereqs")
+
+        _c1 = [f"kustomize build {__prereqs} | kubectl apply -f -"]  # Build the base manifests using kustomize
+
+        try:
+            _resp = subprocess.run(_c1, shell=True, check=True, capture_output=True, text=True)  # Run the command to build the base manifests
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to build base Kubernetes prereqs: {e}")
+            return
+            
+        if _resp.returncode != 0:
+            spinner.fail(f"Failed to build base Kubernetes prereqs: {_resp.stderr}")
+            return
+
     def kustomize_build(self) -> None:
         # Let's install the base manifests using kustomize and kubectl
         __base = os.path.join(metadata.rootdir, "k8s", self.env, "base")
@@ -439,24 +455,26 @@ class Cluster():
         # Now we will wait for the CRD to be established
         _max = 10
         _attempt = 0
+        _waitspin = Halo(text_color="blue", spinner="dots")
         _crdcmd = ["kubectl", "wait", "--for=condition=established", "crd/appprojects.argoproj.io", "--timeout=60s"]
+        _waitspin.start(text="Waiting for Kubernetes Cluster required resources to become available...")  # Start the spinner for waiting
         while _attempt < _max:
             try:
                 _resp = subprocess.run(_crdcmd, check=True, capture_output=True, text=True)
             except subprocess.CalledProcessError as e:
                 _attempt += 1
-                spinner.info(f"Attempt {_attempt} to wait for CRD to be established...")
                 time.sleep(5)  # Wait for 5 seconds before retrying
 
             if _resp.returncode == 0:
-                spinner.succeed("CRD established successfully!")
-                time.sleep(3) # Wait for a few seconds to ensure the CRD is established
+                _waitspin.succeed(f"crd/appprojects.argoproj.io established successfully!")
+                time.sleep(5) # Wait for a few seconds to ensure the CRD is established
                 break
             else:
                 if _attempt == _max - 1:
-                    spinner.fail(f"Failed to establish CRD: {_resp.stderr}; Max attempts reached. Exiting...")
+                    _waitspin.fail(f"Failed to establish CRD: {_resp.stderr}; Max attempts reached. Exiting...")
                     return
-        
+        _waitspin.stop()  # Stop the spinner after waiting
+
         _o1 = [f"kustomize build {__overlays} | kubectl apply -f -"]  # Build the base manifests using kustomize
         
         if not os.path.exists(__overlays):
@@ -464,8 +482,13 @@ class Cluster():
             return
         
         try:
-            _resp = subprocess.run(_o1, shell=True, check=True, capture_output=True, text=True)  # Run the command to build the base manifests
-        except subprocess.CalledProcessError as e:
+            _resp = subprocess.run(_o1, shell=True, capture_output=True, text=True)  # Run the command to build the base manifests
+        except Exception as e:
+        #except subprocess.CalledProcessError as e:
+            print(e)
+            print(_resp.stderr)
+            print(_resp.stdout)
+            print(_resp.returncode)
             spinner.fail(f"Failed to build overlays Kubernetes manifests: {e} -- {_resp.stderr}")
             return
             
@@ -535,6 +558,7 @@ class Cluster():
     def __build_and_load_docker_images(self, pfo_config: Any) -> None:
         # Now we need to get the docker image from the repo - it should now be cloned to /tmp/.pfo/<repo>
         # We need to get the artifact (docker image) for this project and add it to the manifest(s)
+        spinner.start("Building Docker images and loading them into the Kind cluster...\n\n")
         client = self.__docker_connection()
         _version = pfo_config.get("version", "latest")
 
@@ -700,9 +724,6 @@ class Cluster():
         except subprocess.CalledProcessError:
             return None
 
-    def __add_private_key_to_secret(self) -> None:
-        print("Adding the private key to the Kubernetes secret...")
-        print("UNDER CONSTRUCTION - NOT IMPLEMENTED YET")
 
 @Halo(text="Creating Encryption Keys...\n", spinner="dots")
 def create_keys():
