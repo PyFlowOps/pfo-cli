@@ -12,9 +12,6 @@ import collections
 import os
 import shutil
 import sys
-#import stat
-#import subprocess
-#import time
 
 import click
 
