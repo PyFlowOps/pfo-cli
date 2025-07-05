@@ -5,7 +5,7 @@ import subprocess
 from halo import Halo
 
 
-_manspinner = Halo(spinner="dots")
+_manspinner = Halo(spinner="dots", text_color="blue")
 _private_ssh_key: str = os.path.join(os.path.expanduser("~"), ".pfo", "argocd", "argocd_github")
 _public_ssh_key: str = os.path.join(os.path.expanduser("~"), ".pfo", "argocd", "argocd_github.pub")
 _manifest_path: str = os.path.join(os.path.expanduser("~"), ".pfo", "k8s", "local", "overlays", "argocd")
@@ -29,7 +29,7 @@ def add_ssh_privkey_to_secret_manifest() -> None:
         manifest (dict): The manifest dictionary containing the ArgoCD configuration (dict from yaml.safe_load()s)
 
     """
-    _manspinner.start("Adding SSH private key to ArgoCD secret manifest...")
+    _manspinner.start("Adding SSH private key to ArgoCD secret manifests...")
     if len(_secret_manifests) == 0:
         _manspinner.fail("No secret manifests found in the specified path. Please ensure you have created the necessary secret manifests.")
         return

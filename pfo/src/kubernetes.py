@@ -314,39 +314,45 @@ class Cluster():
                 # Let's build the docker images for the repo
                 self.__build_and_load_docker_images(pfo_config=pfo_config)
 
-                # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
-                kubernetes_dirs = ["base", "overlays"]
-                if pfo_config.get("k8s", {}).get("deploy", False):
-                    for _kdir in kubernetes_dirs:
-                        with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "r") as kf:
-                            # Since the deploy key is true, we will add the docker image to the kustomization.yaml file
-                            _kdata = yaml.safe_load(kf)
-                    
-                        # Let's augment the kustomization.yaml file with the docker image
-                        for _iname, idata in pfo_config["docker"].items():
-                            if _kdata.get("images", None):
-                                _kdata["images"].append(
-                                    {
-                                        "name": pfo_config["docker"][_iname]["image"],
-                                        "newName": f"{pfo_config['docker'][_iname]['image']}",
-                                        "newTag": self.env
-                                    }
-                                )
+            # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
+            kubernetes_dirs = ["base", "overlays"]
+            if pfo_config.get("k8s", {}).get("deploy", False):
+                for _kdir in kubernetes_dirs:
+                    with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "r") as kf:
+                        # Since the deploy key is true, we will add the docker image to the kustomization.yaml file
+                        _kdata = yaml.safe_load(kf)
+            
+                    # Let's augment the kustomization.yaml file with the docker image(s) from the pfo.json config file
+                    for _iname, _ in pfo_config["docker"].items():
+                        if _kdata.get("images", None):
+                            _kdata["images"].append(
+                                {
+                                    "name": pfo_config["docker"][_iname]["image"],
+                                    "newName": f"{pfo_config['docker'][_iname]['image']}",
+                                    "newTag": self.env
+                                }
+                            )
 
                     # We need to add this repo's manifests to the kustomization.yaml file
                     # If the repo is not managed by ArgoCD, we will add the manifest path to the kustomization.yaml file
                     # If the repo is managed by ArgoCD, we will not add the manifest path to the kustomization.yaml file
-                    if not pfo_config.get("k8s", {}).get("argocd", {}).get("managed", False):
+                    if pfo_config.get("k8s", {}).get("argocd", {}).get("managed", False):
+                        _kdata["resources"].append(f"{pfo_config['k8s']['name']}/")
+
+                        _src = os.path.join(self.temp, repo, pfo_config["k8s"]["argocd"]["manifest_path"], _kdir) # Get the source path for the manifests
+                        _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
+                    else:
                         if pfo_config.get("k8s", {}).get("manifest_path", None):
                             _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
                             
                             _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env, _kdir) # Get the source path for the manifests
                             _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
-                            self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
+                    
+                        self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
 
-                        # Now we will write the kustomization.yaml file back to the disk
-                        with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
-                            yaml.dump(_kdata, kf, default_flow_style=False)
+                    # Now we will write the kustomization.yaml file back to the disk
+                    with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
+                        yaml.dump(_kdata, kf, default_flow_style=False)
 
         # Now we will add the ArgoCD SSH private key to the Kubernetes secrets
         # If the secret is a Repository Secret, we will add the private key to the secretsw
@@ -484,11 +490,6 @@ class Cluster():
         try:
             _resp = subprocess.run(_o1, shell=True, capture_output=True, text=True)  # Run the command to build the base manifests
         except Exception as e:
-        #except subprocess.CalledProcessError as e:
-            print(e)
-            print(_resp.stderr)
-            print(_resp.stdout)
-            print(_resp.returncode)
             spinner.fail(f"Failed to build overlays Kubernetes manifests: {e} -- {_resp.stderr}")
             return
             

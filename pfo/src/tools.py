@@ -205,6 +205,10 @@ def register() -> None:
     _data["k8s"]["argocd"] = {
         # Setting managed to True will have ArgoCD manage the application.
         "managed": False,
+        # This is the path to the ArgoCD application manifests -- base dir where /base and /overlays directories are located.
+        "manifest_path": "manifests/argocd",
+        # This is the path to the ArgoCD application manifests -- base dir where /base
+        "base": "manifests/argocd/base",
         # The overlays directory is where the ArgoCD application manifests are stored.
         # There SHOULD be a kustomization.yaml file in this directory.
         "overlays": "manifests/local/overlays"
