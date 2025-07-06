@@ -24,7 +24,8 @@ from halo import Halo
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
 from pfo.k8s import traefik
-from pfo import argocd
+from pfo.k8s import argocd
+#from pfo import argocd
 
 from src.tools import (
     assert_pfo_config_file,
@@ -92,11 +93,11 @@ def k8s(**params: dict) -> None:
             create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
         
         # We need to create SSH keys for the ArgoCD SSH secret - this is used to access private repositories
-        argocd.keys.generate_ssh_keypair() # This creates the needed SSH keys for the ArgoCD SSH secret - ~/.pfo/argocd
+        #argocd.keys.generate_ssh_keypair() # This creates the needed SSH keys for the ArgoCD SSH secret - ~/.pfo/argocd
         
         # Now, if the SSH key is not present in Github as an SSH Deploy Key, we will add it
-        if not argocd.keys.check_ssh_key_exists():
-            argocd.keys.add_ssh_key_to_github()
+        #if not argocd.keys.check_ssh_key_exists():
+        #    argocd.keys.add_ssh_key_to_github()
 
         # This logic block will allow the user to select the environment for the Kind cluster
         # Currently, local is the only supported environment, but this can be extended in the future
@@ -309,9 +310,10 @@ class Cluster():
 
         # We need to install the base prerequisites for the Kubernetes cluster
         self.__install_k8s_prereqs() # Install the base Kubernetes prerequisites - ArgoCD Namespace, etc.
-        Cluster.argocd() # Install ArgoCD in the Kind cluster
-        Cluster.argocd_image_updater() # Install ArgoCD Image Updater in the Kind cluster
-        time.sleep(15) # Wait for ArgoCD to be fully deployed
+        #Cluster.argocd() # Install ArgoCD in the Kind cluster
+        #Cluster.argocd_image_updater() # Install ArgoCD Image Updater in the Kind cluster
+        #time.sleep(15) # Wait for ArgoCD to be fully deployed
+        argocd.install() # Install ArgoCD in the Kind cluster
 
         # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
