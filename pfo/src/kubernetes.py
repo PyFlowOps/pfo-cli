@@ -23,6 +23,7 @@ from halo import Halo
 
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
+from pfo.k8s import traefik
 from pfo import argocd
 
 from src.tools import (
@@ -107,6 +108,10 @@ def k8s(**params: dict) -> None:
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
         Cluster.install_metallb() # Install MetalLB in the Kind cluster
+        
+        # We need to install Traefik in the Kind cluster
+        traefik.install()
+        
         Cluster.cluster_info() # Display the cluster information
         spinner.succeed("Complete!")
         exit()

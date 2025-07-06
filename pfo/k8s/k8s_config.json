@@ -1,0 +1,21 @@
+{
+    "argocd":
+    {
+        "enabled": true,
+        "namespace": "argocd",
+        "github_ssh_pub": "~/.pfo/argocd/argocd_github.pub",
+        "github_ssh_priv": "~/.pfo/argocd/argocd_github"
+    },
+    "gpg":
+    {
+        "enabled": true,
+        "public_key": "~/.pfo/keys/pfo.pub",
+        "private_key": "~/.pfo/keys/pfo"
+    },
+    "traefik":
+    {
+        "enabled": true,
+        "namespace": "traefik",
+        "values_file": "~/.pfo/k8s/local/overlays/traefik/values.yaml"
+    }
+}
