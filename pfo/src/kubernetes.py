@@ -106,6 +106,7 @@ def k8s(**params: dict) -> None:
 
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
+        Cluster.install_metallb() # Install MetalLB in the Kind cluster
         Cluster.cluster_info() # Display the cluster information
         spinner.succeed("Complete!")
         exit()
@@ -210,6 +211,22 @@ class Cluster():
         print("ArgoCD Username: admin")
         print(f"ArgoCD Password: {Cluster.get_argocd_default_password()}")
         print("\n")
+
+    @staticmethod
+    def install_metallb() -> None:
+        """This function will install metallb in the Kind cluster."""
+        _cmd = ["kubectl", "apply", "-f", "https://raw.githubusercontent.com/metallb/metallb/v0.15.2/config/manifests/metallb-native.yaml"]
+        try:
+            res = subprocess.run(_cmd, check=True, capture_output=True, text=True)
+            spinner.succeed("MetalLB installed successfully!")
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to install MetalLB: {e}")
+            return
+
+        if res.returncode != 0:
+            spinner.fail(f"Failed to install MetalLB: {res.stderr}")
+            return
+
 
     @staticmethod
     def argocd() -> None:
@@ -333,23 +350,33 @@ class Cluster():
                                 }
                             )
 
+                if pfo_config.get("k8s", {}).get("argocd", {}).get("managed", False):
+                    _kdata["resources"].append(f"../{pfo_config['k8s']['name']}/overlays/")
+
+                    _src = os.path.join(self.temp, repo, pfo_config["k8s"]["argocd"]["manifest_path"]) # Get the source path for the manifests
+                    _dest = os.path.join(self._k8s_dir, self.env, pfo_config["k8s"]["name"])
+
+                    self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
+                    """
                     # We need to add this repo's manifests to the kustomization.yaml file
                     # If the repo is not managed by ArgoCD, we will add the manifest path to the kustomization.yaml file
                     # If the repo is managed by ArgoCD, we will not add the manifest path to the kustomization.yaml file
                     if pfo_config.get("k8s", {}).get("argocd", {}).get("managed", False):
-                        _kdata["resources"].append(f"{pfo_config['k8s']['name']}/")
+                        #_kdata["resources"].append(f"{pfo_config['k8s']['name']}/")
 
                         _src = os.path.join(self.temp, repo, pfo_config["k8s"]["argocd"]["manifest_path"], _kdir) # Get the source path for the manifests
                         _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
+
+                        self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
                     else:
                         if pfo_config.get("k8s", {}).get("manifest_path", None):
-                            _kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
+                            #_kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
                             
                             _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env, _kdir) # Get the source path for the manifests
                             _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
                     
-                        self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
-
+                            self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
+                    """
                     # Now we will write the kustomization.yaml file back to the disk
                     with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
                         yaml.dump(_kdata, kf, default_flow_style=False)
@@ -646,7 +673,7 @@ class Cluster():
             res = subprocess.run(["kind", "get", "clusters"], capture_output=True, text=True, check=True)
             if self.env in res.stdout:
                 return True
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             spinner.fail(f"Error checking Kind cluster: {e}")
             return False
         
