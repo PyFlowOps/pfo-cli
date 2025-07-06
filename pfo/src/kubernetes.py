@@ -108,11 +108,7 @@ def k8s(**params: dict) -> None:
 
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
-        Cluster.install_metallb() # Install MetalLB in the Kind cluster
-        
-        # We need to install Traefik in the Kind cluster
-        traefik.install()
-        
+        Cluster.install_metallb() # Install MetalLB in the Kind cluster        
         Cluster.cluster_info() # Display the cluster information
         spinner.succeed("Complete!")
         exit()
@@ -215,7 +211,7 @@ class Cluster():
         print("\n")
         print("ArgoCD URL: http://localhost:8080")
         print("ArgoCD Username: admin")
-        print(f"ArgoCD Password: {Cluster.get_argocd_default_password()}")
+        print(f"ArgoCD Password: {argocd.admin_password()}")
         print("\n")
 
     @staticmethod
@@ -234,54 +230,54 @@ class Cluster():
             return
 
 
-    @staticmethod
-    def argocd() -> None:
-        """This function will install ArgoCD in the Kind cluster."""
-        # Now we will install ArgoCD in the Kind cluster
-        # This will install ArgoCD in the argocd namespace
-        _argo_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"]
-        try:
-            _resp = subprocess.run(_argo_deployment, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to install ArgoCD: {e}")
-            return
-        
-        if _resp.returncode != 0:
-            spinner.fail(f"Failed to install ArgoCD: {_resp.stderr}")
-            return
-
-        spinner.succeed("ArgoCD deployment installed successfully!")
-
-    @staticmethod
-    def argocd_image_updater() -> None:
-        """This function will update the ArgoCD image in the Kind cluster."""
-        _imupd_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/manifests/install.yaml"]
-        try:
-            _resp = subprocess.run(_imupd_deployment, check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to install ArgoCD: {e}")
-            return
-
-    @staticmethod
-    def get_argocd_default_password() -> str|None:
-        """Retrieves the default password for the ArgoCD admin user."""
-        _p1_cmd = ["kubectl", "-n", "argocd", "get", "secret", "argocd-initial-admin-secret", "-o", "jsonpath='{.data.password}'"]
-        try:
-            _resp = subprocess.run(_p1_cmd, check=True, capture_output=True, text=True)
-            _data = _resp.stdout.strip()
-            
-            if type(_data) == bytes:
-                _decoded_data = _data.decode("utf-8")
-                _pass = base64.b64decode(_decoded_data).decode("utf-8") # Decode the base64 encoded data
-                return _pass
-            
-            if type(_data) == str:
-                _pass = base64.b64decode(_data).decode("utf-8")  # Remove the single quotes around the data
-                return _pass
-            
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to get ArgoCD initial admin - {e}")
-            return
+    #@staticmethod
+    #def argocd() -> None:
+    #    """This function will install ArgoCD in the Kind cluster."""
+    #    # Now we will install ArgoCD in the Kind cluster
+    #    # This will install ArgoCD in the argocd namespace
+    #    _argo_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"]
+    #    try:
+    #        _resp = subprocess.run(_argo_deployment, check=True, capture_output=True, text=True)
+    #    except subprocess.CalledProcessError as e:
+    #        spinner.fail(f"Failed to install ArgoCD: {e}")
+    #        return
+    #    
+    #    if _resp.returncode != 0:
+    #        spinner.fail(f"Failed to install ArgoCD: {_resp.stderr}")
+    #        return
+#
+    #    spinner.succeed("ArgoCD deployment installed successfully!")
+#
+    #@staticmethod
+    #def argocd_image_updater() -> None:
+    #    """This function will update the ArgoCD image in the Kind cluster."""
+    #    _imupd_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/manifests/install.yaml"]
+    #    try:
+    #        _resp = subprocess.run(_imupd_deployment, check=True, capture_output=True, text=True)
+    #    except subprocess.CalledProcessError as e:
+    #        spinner.fail(f"Failed to install ArgoCD: {e}")
+    #        return
+#
+    #@staticmethod
+    #def get_argocd_default_password() -> str|None:
+    #    """Retrieves the default password for the ArgoCD admin user."""
+    #    _p1_cmd = ["kubectl", "-n", "argocd", "get", "secret", "argocd-initial-admin-secret", "-o", "jsonpath='{.data.password}'"]
+    #    try:
+    #        _resp = subprocess.run(_p1_cmd, check=True, capture_output=True, text=True)
+    #        _data = _resp.stdout.strip()
+    #        
+    #        if type(_data) == bytes:
+    #            _decoded_data = _data.decode("utf-8")
+    #            _pass = base64.b64decode(_decoded_data).decode("utf-8") # Decode the base64 encoded data
+    #            return _pass
+    #        
+    #        if type(_data) == str:
+    #            _pass = base64.b64decode(_data).decode("utf-8")  # Remove the single quotes around the data
+    #            return _pass
+    #        
+    #    except subprocess.CalledProcessError as e:
+    #        spinner.fail(f"Failed to get ArgoCD initial admin - {e}")
+    #        return
     
     def update(self) -> None:
         """Updates the Kubernetes cluster."""
@@ -306,6 +302,7 @@ class Cluster():
         spinner.info(f"Retrieved repository data from GitHub for Org: {_owner}")
 
         # Now we will create/update the base Kubernetes manifests for the project
+        # These manifests are coming from pyflowops/k8s-installs.git
         self.set_configs_and_manifests()
 
         # We need to install the base prerequisites for the Kubernetes cluster
@@ -313,7 +310,8 @@ class Cluster():
         #Cluster.argocd() # Install ArgoCD in the Kind cluster
         #Cluster.argocd_image_updater() # Install ArgoCD Image Updater in the Kind cluster
         #time.sleep(15) # Wait for ArgoCD to be fully deployed
-        argocd.install() # Install ArgoCD in the Kind cluster
+        traefik.install()
+        argocd.install()
 
         # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
@@ -390,7 +388,7 @@ class Cluster():
 
         # Now we will add the ArgoCD SSH private key to the Kubernetes secrets
         # If the secret is a Repository Secret, we will add the private key to the secretsw
-        argocd.manifest.add_ssh_privkey_to_secret_manifest() # Add the private key to the secrets
+        argocd.add_ssh_key() # Add the private key to the secrets
 
         # Now we will build the Kubernetes manifests using kustomize and apply them to the Kind cluster
         self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
