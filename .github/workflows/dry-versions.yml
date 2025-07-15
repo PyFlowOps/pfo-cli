@@ -3,9 +3,9 @@ name: Manual Toml Version Check
 on:
   workflow_call:
     outputs:
-      toml_version:
-        description: 'The version from the pyproject.toml file'
-        value: ${{ jobs.versions.outputs.toml_version }}
+      package_version:
+        description: 'The package version from pyproject.toml or pfo.json'
+        value: ${{ jobs.versions.outputs.package_version }}
 
       latest_version:
         description: 'The latest version (Published Release)'
@@ -28,7 +28,7 @@ jobs:
     name: Project Versions
     runs-on: 'ubuntu-latest'
     outputs:
-      toml_version: ${{ steps.toml-version.outputs.toml_version }}
+      package_version: ${{ steps.package-version.outputs.package_version }}
       latest_version: ${{ steps.latest-version.outputs.latest_version }}
       draft_version: ${{ steps.draft-version.outputs.draft_version }}
     steps:
@@ -44,20 +44,22 @@ jobs:
         run: pip install -r ${{ github.workspace }}/.github/workflows/src/requirements.txt
         shell: bash
   
-      - name: PyTOML Version
-        id: toml-version
+      - name: Package Version
+        id: package-version
         run: |
           #!/bin/bash
-          echo "Getting version from PyTOML file"
-          if [[ ! -f "${{ github.workspace }}/pyproject.toml" ]]; then
-            echo "PyTOML file not found!"
-            exit 1
+          echo "Getting version from pyproject.toml file"
+          if [[ -f "${{ github.workspace }}/pyproject.toml" ]]; then
+            _version=$(python ${{ github.workspace }}/.github/workflows/src/project_versions.py --toml)
           fi
-  
-          # Read the version from the PyTOML file
-          _version=$(python ${{ github.workspace }}/.github/workflows/src/project_versions.py --toml)
-          echo "TOML Version: $_version"
-          echo "toml_version=$_version" >> $GITHUB_OUTPUT
+          
+          echo "Getting version from pfo.json file"
+          if [[ -f "${{ github.workspace }}/pfo.json" ]]; then
+            _version=$(python ${{ github.workspace }}/.github/workflows/src/project_versions.py --pfo)
+          fi
+          
+          echo "Package Version: $_version"
+          echo "package_version=$_version" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Current Release Version
