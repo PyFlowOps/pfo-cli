@@ -3,13 +3,15 @@ import yaml
 import subprocess
 
 from halo import Halo
-
+from pfo.k8s import k8s_config
 
 _manspinner = Halo(spinner="dots", text_color="blue")
-_private_ssh_key: str = os.path.join(os.path.expanduser("~"), ".pfo", "argocd", "argocd_github")
-_public_ssh_key: str = os.path.join(os.path.expanduser("~"), ".pfo", "argocd", "argocd_github.pub")
-_manifest_path: str = os.path.join(os.path.expanduser("~"), ".pfo", "k8s", "local", "overlays", "argocd")
-_secret_manifests = [os.path.join(_manifest_path, i) for i in os.listdir(_manifest_path) if "secret" in i and i.endswith(".yaml")]
+
+argocd_config = k8s_config["argocd"] # Load the ArgoCD configuration from the k8s_config.json file
+_private_ssh_key: str = os.path.expanduser(argocd_config["github_ssh_priv"])
+#_public_ssh_key: str = os.path.expanduser(argocd_config["github_ssh_pub"])
+#_manifest_path: str = os.path.join(os.path.expanduser("~"), ".pfo", "k8s", "local", "overlays", "argocd")
+_secret_manifests: list = argocd_config.get("secret_manifests", [])
 
 # Read the private SSH key contents
 with open(_private_ssh_key, "r") as f:
@@ -35,20 +37,22 @@ def add_ssh_privkey_to_secret_manifest() -> None:
         return
     
     for manifest in _secret_manifests:
-        with open(manifest, "r") as f:
+        _current_manifest = os.path.expanduser(manifest)
+
+        with open(_current_manifest, "r") as f:
             _mdata = yaml.safe_load(f.read())
 
         yaml.add_representer(str, str_presenter)  # Ensure multiline strings are handled correctly
 
         if _mdata.get("kind", None) != "Secret":
-            _manspinner.fail(f"The manifest {manifest} is named as a secret but not of kind Secret. Skipping...")
+            _manspinner.fail(f"The manifest {_current_manifest} is named as a secret manifest in the config, but not of kind Secret. Skipping...")
             continue
 
-        if _mdata.get("stringData", None).get("sshPrivateKey", None):
+        if _mdata.get("stringData", {}).get("sshPrivateKey", None):
             _mdata["stringData"]["sshPrivateKey"] = f"""{_priv_contents.strip("\n")}"""
-            with open(manifest, "w") as f:
+            with open(_current_manifest, "w") as f:
                 yaml.dump(_mdata, f, default_flow_style=False)
-            _manspinner.succeed(f"SSH private key added to {manifest}")
+            _manspinner.succeed(f"SSH private key added to {_current_manifest}")
         _manspinner.stop()
 
 def str_presenter(dumper, data):

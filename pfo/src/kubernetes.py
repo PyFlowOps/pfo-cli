@@ -23,7 +23,7 @@ from halo import Halo
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
 from pfo.k8s import traefik, metallb
-from pfo.k8s import argocd
+from pfo import argocd
 from src.tools import print_help_msg
 
 __author__ = "Philip De Lorenzo"
@@ -235,6 +235,9 @@ class Cluster():
         metallb.install() # Install MetalLB in the Kind cluster
         traefik.install()
         argocd.install()
+
+        # IMPORTANT - We need to ensure that we have TLS certificates for the ArgoCD installations
+        argocd.tls.install() # Install the TLS certificates for ArgoCD
 
         # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
@@ -544,7 +547,7 @@ class Cluster():
                     if _rnresp.returncode != 0:
                         spinner.fail(f"Error building release notes: {_rnresp.stderr}")
                         return
-
+                
                 image, build_logs = client.images.build(
                     path=os.path.join(self.temp, pfo_config["name"]),
                     dockerfile=str(os.path.join(self.temp, pfo_config["name"], _img_data["repo_path"], _img_data["dockerfile"])),
@@ -559,7 +562,7 @@ class Cluster():
 
                 spinner.succeed(f"Docker image {_img_data['image']}:local built successfully!")
             except Exception as e:
-                spinner.fail(f"Error: {e}")
+                spinner.fail(f"Error: {e} - The Docker image {pfo_config["name"]}:local could not be built.")
 
         # Load phase
         for _, _img_data in pfo_config["docker"].items():

@@ -147,4 +147,3 @@ def add_ssh_key_to_github():
     except subprocess.CalledProcessError as e:
         _keyspinner.fail(f"Error adding SSH key to Github: {e}")
         exit()
-
