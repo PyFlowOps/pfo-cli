@@ -67,6 +67,17 @@ def check_values_file(traefik_values_file: str) -> bool:
     """Check if the Traefik values file exists."""
     return os.path.isfile(os.path.expanduser(traefik_values_file))
 
+def _install_crds() -> None:
+    """Install Traefik CRDs if they are not already installed."""
+    try:
+        _res = subprocess.run(["helm", "install", "traefik-crds", "traefik/traefik-crds", "--namespace", "traefik"], check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        if "AlreadyExists" not in str(e):
+            _traefik_spinner.fail(f"Failed to install Traefik CRDs: {e}")
+    
+    if _res.returncode != 0:
+        _traefik_spinner.fail("Failed to install Traefik CRDs. Please check the Helm output for details.")
+
 def install() -> None:
     """Install Traefik using Helm with the specified values file."""
     _traefik_spinner.start("Installing Traefik...")
@@ -75,6 +86,9 @@ def install() -> None:
 
     # Create the namespace if it doesn't exist
     create_traefik_namespace()
+    
+    # Install CRDs if they are not already installed
+    _install_crds()
 
     # Check if the values file exists
     if not check_values_file(traefik_values_file):
@@ -82,6 +96,7 @@ def install() -> None:
 
     # Install Traefik with the specified values
     try:
+        #_cmd = ["helm", "install", "traefik", "traefik/traefik", "--namespace", "traefik", "--set", "crds.enabled=true", "-f", os.path.expanduser(traefik_values_file)]
         _cmd = ["helm", "install", "traefik", "traefik/traefik", "--namespace", "traefik", "-f", os.path.expanduser(traefik_values_file)]
         _res = subprocess.run(_cmd, check=True, capture_output=True, text=True)
 

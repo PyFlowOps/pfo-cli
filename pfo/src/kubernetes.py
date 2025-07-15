@@ -6,7 +6,6 @@ import click
 import gnupg
 import os
 import base64
-import binascii
 import json
 import time
 import docker
@@ -23,17 +22,9 @@ from halo import Halo
 
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
-from pfo.k8s import traefik
+from pfo.k8s import traefik, metallb
 from pfo.k8s import argocd
-#from pfo import argocd
-
-from src.tools import (
-    assert_pfo_config_file,
-    bump_version,
-    deregister,
-    print_help_msg,
-    register,
-)
+from src.tools import print_help_msg
 
 __author__ = "Philip De Lorenzo"
 
@@ -108,7 +99,6 @@ def k8s(**params: dict) -> None:
 
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
-        Cluster.install_metallb() # Install MetalLB in the Kind cluster        
         Cluster.cluster_info() # Display the cluster information
         spinner.succeed("Complete!")
         exit()
@@ -214,71 +204,6 @@ class Cluster():
         print(f"ArgoCD Password: {argocd.admin_password()}")
         print("\n")
 
-    @staticmethod
-    def install_metallb() -> None:
-        """This function will install metallb in the Kind cluster."""
-        _cmd = ["kubectl", "apply", "-f", "https://raw.githubusercontent.com/metallb/metallb/v0.15.2/config/manifests/metallb-native.yaml"]
-        try:
-            res = subprocess.run(_cmd, check=True, capture_output=True, text=True)
-            spinner.succeed("MetalLB installed successfully!")
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to install MetalLB: {e}")
-            return
-
-        if res.returncode != 0:
-            spinner.fail(f"Failed to install MetalLB: {res.stderr}")
-            return
-
-
-    #@staticmethod
-    #def argocd() -> None:
-    #    """This function will install ArgoCD in the Kind cluster."""
-    #    # Now we will install ArgoCD in the Kind cluster
-    #    # This will install ArgoCD in the argocd namespace
-    #    _argo_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"]
-    #    try:
-    #        _resp = subprocess.run(_argo_deployment, check=True, capture_output=True, text=True)
-    #    except subprocess.CalledProcessError as e:
-    #        spinner.fail(f"Failed to install ArgoCD: {e}")
-    #        return
-    #    
-    #    if _resp.returncode != 0:
-    #        spinner.fail(f"Failed to install ArgoCD: {_resp.stderr}")
-    #        return
-#
-    #    spinner.succeed("ArgoCD deployment installed successfully!")
-#
-    #@staticmethod
-    #def argocd_image_updater() -> None:
-    #    """This function will update the ArgoCD image in the Kind cluster."""
-    #    _imupd_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/manifests/install.yaml"]
-    #    try:
-    #        _resp = subprocess.run(_imupd_deployment, check=True, capture_output=True, text=True)
-    #    except subprocess.CalledProcessError as e:
-    #        spinner.fail(f"Failed to install ArgoCD: {e}")
-    #        return
-#
-    #@staticmethod
-    #def get_argocd_default_password() -> str|None:
-    #    """Retrieves the default password for the ArgoCD admin user."""
-    #    _p1_cmd = ["kubectl", "-n", "argocd", "get", "secret", "argocd-initial-admin-secret", "-o", "jsonpath='{.data.password}'"]
-    #    try:
-    #        _resp = subprocess.run(_p1_cmd, check=True, capture_output=True, text=True)
-    #        _data = _resp.stdout.strip()
-    #        
-    #        if type(_data) == bytes:
-    #            _decoded_data = _data.decode("utf-8")
-    #            _pass = base64.b64decode(_decoded_data).decode("utf-8") # Decode the base64 encoded data
-    #            return _pass
-    #        
-    #        if type(_data) == str:
-    #            _pass = base64.b64decode(_data).decode("utf-8")  # Remove the single quotes around the data
-    #            return _pass
-    #        
-    #    except subprocess.CalledProcessError as e:
-    #        spinner.fail(f"Failed to get ArgoCD initial admin - {e}")
-    #        return
-    
     def update(self) -> None:
         """Updates the Kubernetes cluster."""
         _owner = self.repo_owner
@@ -305,11 +230,9 @@ class Cluster():
         # These manifests are coming from pyflowops/k8s-installs.git
         self.set_configs_and_manifests()
 
-        # We need to install the base prerequisites for the Kubernetes cluster
+        # We need to install the base prerequisites for the Kubernetes cluster, and other applications like Traefik and ArgoCD, etc.
         self.__install_k8s_prereqs() # Install the base Kubernetes prerequisites - ArgoCD Namespace, etc.
-        #Cluster.argocd() # Install ArgoCD in the Kind cluster
-        #Cluster.argocd_image_updater() # Install ArgoCD Image Updater in the Kind cluster
-        #time.sleep(15) # Wait for ArgoCD to be fully deployed
+        metallb.install() # Install MetalLB in the Kind cluster
         traefik.install()
         argocd.install()
 
@@ -362,26 +285,7 @@ class Cluster():
                     _dest = os.path.join(self._k8s_dir, self.env, pfo_config["k8s"]["name"])
 
                     self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
-                    """
-                    # We need to add this repo's manifests to the kustomization.yaml file
-                    # If the repo is not managed by ArgoCD, we will add the manifest path to the kustomization.yaml file
-                    # If the repo is managed by ArgoCD, we will not add the manifest path to the kustomization.yaml file
-                    if pfo_config.get("k8s", {}).get("argocd", {}).get("managed", False):
-                        #_kdata["resources"].append(f"{pfo_config['k8s']['name']}/")
 
-                        _src = os.path.join(self.temp, repo, pfo_config["k8s"]["argocd"]["manifest_path"], _kdir) # Get the source path for the manifests
-                        _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
-
-                        self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
-                    else:
-                        if pfo_config.get("k8s", {}).get("manifest_path", None):
-                            #_kdata["resources"].append(f"{pfo_config['k8s']['name']}/") # Add the manifest path to the kustomization.yaml file
-                            
-                            _src = os.path.join(self.temp, repo, pfo_config["k8s"]["manifest_path"], self.env, _kdir) # Get the source path for the manifests
-                            _dest = os.path.join(self._k8s_dir, self.env, _kdir, pfo_config["k8s"]["name"])
-                    
-                            self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
-                    """
                     # Now we will write the kustomization.yaml file back to the disk
                     with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
                         yaml.dump(_kdata, kf, default_flow_style=False)

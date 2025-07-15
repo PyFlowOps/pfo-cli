@@ -5,7 +5,10 @@
         "namespace": "argocd",
         "basedir": "~/.pfo/k8s/argocd",
         "github_ssh_pub": "~/.pfo/argocd/argocd_github.pub",
-        "github_ssh_priv": "~/.pfo/argocd/argocd_github"
+        "github_ssh_priv": "~/.pfo/argocd/argocd_github",
+        "tls_cert": "~/.pfo/argocd/argocd-ssl-tls.crt",
+        "tls_key": "~/.pfo/argocd/argocd-ssl-tls.key",
+        "secret_manifest": "~/.pfo/k8s/local/overlays/argocd/argocd-ssl-certs.yaml"
     },
     "gpg":
     {
