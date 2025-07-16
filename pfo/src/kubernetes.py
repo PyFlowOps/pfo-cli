@@ -23,7 +23,7 @@ from halo import Halo
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
 from pfo.k8s import traefik, metallb
-from pfo.k8s import argocd
+from pfo import argocd
 from src.tools import print_help_msg
 
 __author__ = "Philip De Lorenzo"
@@ -99,6 +99,27 @@ def k8s(**params: dict) -> None:
 
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
+
+        spinner.start("Waiting for the Kind cluster to be ready...\n\n")
+        count = 0
+        while True:
+            try:
+                _res = subprocess.run(["kubectl", "get", "secrets", "--namespace", "argocd", "argocd-initial-admin-secret", "-o", "json"], check=True, capture_output=True, text=True)
+                if _res.returncode == 0:
+                    spinner.succeed("Kind cluster is ready!")
+                    break
+                else:
+                    spinner.fail("Kind cluster is not ready yet. Retrying...")
+                    count += 1
+                    if count >= 15:
+                        spinner.fail("Kind cluster is not ready after 15 attempts. Exiting...")
+                        exit(1)
+
+            except subprocess.CalledProcessError:
+                if count < 15:
+                    count += 1
+                    time.sleep(10)
+
         Cluster.cluster_info() # Display the cluster information
         spinner.succeed("Complete!")
         exit()
@@ -199,7 +220,7 @@ class Cluster():
             return
         
         print("\n")
-        print("ArgoCD URL: http://localhost:8080")
+        print("ArgoCD URL: http://argocd.pyflowops.local:30080")
         print("ArgoCD Username: admin")
         print(f"ArgoCD Password: {argocd.admin_password()}")
         print("\n")
@@ -235,6 +256,9 @@ class Cluster():
         metallb.install() # Install MetalLB in the Kind cluster
         traefik.install()
         argocd.install()
+
+        # IMPORTANT - We need to ensure that we have TLS certificates for the ArgoCD installations
+        argocd.tls.install() # Install the TLS certificates for ArgoCD
 
         # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
@@ -361,22 +385,6 @@ class Cluster():
             except subprocess.CalledProcessError as e:
                 spinner.fail(f"Failed to rollout deployment {dep_name}: {e}")
 
-    def __install_k8s_prereqs(self) -> None:
-        # Let's install the base manifests using kustomize and kubectl
-        __prereqs = os.path.join(metadata.rootdir, "k8s", self.env, "prereqs")
-
-        _c1 = [f"kustomize build {__prereqs} | kubectl apply -f -"]  # Build the base manifests using kustomize
-
-        try:
-            _resp = subprocess.run(_c1, shell=True, check=True, capture_output=True, text=True)  # Run the command to build the base manifests
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to build base Kubernetes prereqs: {e}")
-            return
-            
-        if _resp.returncode != 0:
-            spinner.fail(f"Failed to build base Kubernetes prereqs: {_resp.stderr}")
-            return
-
     def kustomize_build(self) -> None:
         # Let's install the base manifests using kustomize and kubectl
         __base = os.path.join(metadata.rootdir, "k8s", self.env, "base")
@@ -431,6 +439,25 @@ class Cluster():
             
         if _resp.returncode != 0:
             spinner.fail(f"Error building overlays Kubernetes manifests: {_resp.stderr}")
+            return
+
+    # This function lists all directories that are in the ~/.pfo/k8s/local directory
+    # For each directory, it will check for a manifests directory
+
+    def __install_k8s_prereqs(self) -> None:
+        # Let's install the base manifests using kustomize and kubectl
+        __prereqs = os.path.join(metadata.rootdir, "k8s", self.env, "prereqs")
+
+        _c1 = [f"kustomize build {__prereqs} | kubectl apply -f -"]  # Build the base manifests using kustomize
+
+        try:
+            _resp = subprocess.run(_c1, shell=True, check=True, capture_output=True, text=True)  # Run the command to build the base manifests
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to build base Kubernetes prereqs: {e}")
+            return
+            
+        if _resp.returncode != 0:
+            spinner.fail(f"Failed to build base Kubernetes prereqs: {_resp.stderr}")
             return
 
     def __load_image(self, image_name: str, nodes: str) -> None:
@@ -544,7 +571,7 @@ class Cluster():
                     if _rnresp.returncode != 0:
                         spinner.fail(f"Error building release notes: {_rnresp.stderr}")
                         return
-
+                
                 image, build_logs = client.images.build(
                     path=os.path.join(self.temp, pfo_config["name"]),
                     dockerfile=str(os.path.join(self.temp, pfo_config["name"], _img_data["repo_path"], _img_data["dockerfile"])),
@@ -559,7 +586,7 @@ class Cluster():
 
                 spinner.succeed(f"Docker image {_img_data['image']}:local built successfully!")
             except Exception as e:
-                spinner.fail(f"Error: {e}")
+                spinner.fail(f"Error: {e} - The Docker image {pfo_config["name"]}:local could not be built.")
 
         # Load phase
         for _, _img_data in pfo_config["docker"].items():

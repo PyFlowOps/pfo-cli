@@ -30,6 +30,11 @@ _key_file =  os.path.expanduser(_data.get("tls_key", ""))
 
 _tls_spinner = Halo(text_color="blue", spinner="dots")
 
+def str_presenter(dumper, data):
+    if '\n' in data:  # check for multiline string
+        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+
 def check_tls_config_exists() -> bool:
     """
     Check if the TLS configuration for ArgoCD already exists.
@@ -186,8 +191,3 @@ def install():
         add_cert_data_to_secret()  # Add the certificate and key to the ArgoCD
     else:
         _tls_spinner.info("TLS certificate and key already present in the secret manifest. Skipping addition.")
-
-def str_presenter(dumper, data):
-    if '\n' in data:  # check for multiline string
-        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
-    return dumper.represent_scalar('tag:yaml.org,2002:str', data)

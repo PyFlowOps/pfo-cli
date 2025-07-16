@@ -8,7 +8,7 @@
         "github_ssh_priv": "~/.pfo/argocd/argocd_github",
         "tls_cert": "~/.pfo/argocd/argocd-ssl-tls.crt",
         "tls_key": "~/.pfo/argocd/argocd-ssl-tls.key",
-        "secret_manifest": "~/.pfo/k8s/local/overlays/argocd/argocd-ssl-certs.yaml"
+        "secret_manifests": ["~/.pfo/k8s/local/overlays/argocd/argocd-ssl-certs.yaml", "~/.pfo/k8s/local/overlays/argocd/argocd-ssh-secret.yaml"]
     },
     "gpg":
     {
@@ -20,6 +20,6 @@
     {
         "enabled": true,
         "namespace": "traefik",
-        "values_file": "~/.pfo/k8s/local/overlays/traefik/values.yaml"
+        "values_file": "~/.pfo/k8s/local/overlays/traefik/traefik-values.yaml"
     }
 }

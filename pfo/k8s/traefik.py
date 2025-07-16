@@ -45,8 +45,12 @@ def create_traefik_namespace() -> None:
     try:
         _res = subprocess.run(["kubectl", "create", "namespace", "traefik"], check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
-        if "AlreadyExists" not in str(e):
+        if "AlreadyExists" in str(e):
+            _traefik_spinner.succeed("Traefik namespace already exists. Skipping creation.")
+        else:
             _traefik_spinner.fail(f"Failed to create Traefik namespace: {e}")
+
+        return
         
     if _res.returncode != 0:
         _traefik_spinner.fail("Failed to create Traefik namespace. Please check the kubectl output for details.")
