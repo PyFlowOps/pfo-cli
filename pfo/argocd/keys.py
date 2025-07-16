@@ -73,7 +73,7 @@ def generate_ssh_keypair(private_key="argocd_github", public_key="argocd_github.
     encryption_algorithm = serialization.NoEncryption()
 
     if os.path.isfile(_pkeypriv) or os.path.isfile(_pkeypub):
-        _keyspinner.info(f"SSH keypair already exists at {_ssh_key_location}...")
+        #_keyspinner.info(f"SSH keypair already exists at {_ssh_key_location}...")
         return
 
     # Generate a new RSA private key
