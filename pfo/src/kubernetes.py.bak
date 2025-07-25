@@ -33,36 +33,40 @@ metadata = MetaData()
 config_data = metadata.config_data
 spinner = Halo(text_color="blue", spinner="dots")
 
-@click.group(name="k8s", invoke_without_command=True)
-@click.option(
+
+@click.group(cls=DefaultCommandGroup, invoke_without_command=True)
+@optgroup.group(f"Kubernetes CRUD Commands", help=f"Kubnernetes (Kind) cluster administration")
+@optgroup.option(
     "--create",
     required=False,
     is_flag=True,
     help=f"Creates the Kubernetes cluster (Kind) with the latest manifests",
 )
-@click.option(
+@optgroup.option(
     "--delete",
     required=False,
     is_flag=True,
     help=f"Deletes the Kubernetes cluster (Kind) and all associated resources in the local namespace",
 )
-@click.option(
+@optgroup.option(
     "--delete-all",
     required=False,
     is_flag=True,
     help=f"Deletes all Kubernetes (Kind) clusters and all associated resources",
 )
-@click.option(
+@optgroup.option(
     "--update",
     required=False,
     help=f"This updates the Kubernetes cluster (Kind) to the latest manifests",
 )
-@click.option(
+@optgroup.group(f"Kubernetes Cluster Data", help=f"Kubnernetes (Kind) cluster information")
+@optgroup.option(
     "--info",
     required=False,
     is_flag=True,
     help=f"Displays information about the current Kubernetes cluster (Kind)",
 )
+
 def k8s(**params: dict) -> None:
     """Functions applicable to package management, microservices and Docker images.
 
@@ -737,33 +741,3 @@ def create_enc_directory():
     _keys = os.path.join(_home, "keys")
     if not os.path.exists(_keys):
         os.makedirs(_keys)
-
-### Docker command ###
-@k8s.command(name="docker")
-@click.option(
-    "--aws",
-    required=False,
-    default=False,
-    is_flag=True,
-    help="Log into Docker with your AWS credentials.",
-)
-@click.option(
-    "--gcp",
-    required=False,
-    default=False,
-    is_flag=True,
-    help="Log into Docker with your GCP credentials.",
-)
-
-def docker(**params: dict) -> None:
-    """Docker login for image pulls."""
-    if params["aws"] == True:
-        print("farts")
-        exit()
-
-    if params["gcp"] == True:
-        print("GCP is not supported yet.")
-        exit()
-
-
-    print(click.get_current_context().get_help())
