@@ -10,6 +10,11 @@
         "tls_key": "~/.pfo/argocd/argocd-ssl-tls.key",
         "secret_manifests": ["~/.pfo/k8s/local/overlays/argocd/argocd-ssl-certs.yaml", "~/.pfo/k8s/local/overlays/argocd/argocd-ssh-secret.yaml"]
     },
+    "aws": {
+        "ecr": {
+            "region": "us-east-2"
+        }
+    },
     "gpg":
     {
         "enabled": true,

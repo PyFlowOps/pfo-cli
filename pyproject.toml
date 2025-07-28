@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pfo"
-version = "0.2.1"
+version = "0.2.2"
 description = "PyFlowOps CLI"
 authors = ["Philip De Lorenzo <philip.delorenzo@gmail.com>"]
 readme = "README.md"
@@ -23,6 +23,7 @@ python-gnupg = "^0.5.4"
 sopsy = "^1.1.0"
 virtualenv = "^20.31.2"
 cryptography = "^45.0.5"
+boto3 = "^1.39.14"
 
 [build-system]
 requires = ["poetry-core"]
