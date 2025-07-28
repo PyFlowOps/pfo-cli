@@ -17,12 +17,12 @@ import yaml
 from cookiecutter.main import cookiecutter
 from typing import Any
 from git import Repo
-#from click_option_group import optgroup
 from halo import Halo
 
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
 from pfo.k8s import traefik, metallb
+from pfo.k8s.cloud import docker_login
 from pfo import argocd
 from src.tools import print_help_msg
 
@@ -33,7 +33,7 @@ metadata = MetaData()
 config_data = metadata.config_data
 spinner = Halo(text_color="blue", spinner="dots")
 
-@click.group(name="k8s", invoke_without_command=True)
+@click.group(name="k8s", invoke_without_command=False)
 @click.option(
     "--create",
     required=False,
@@ -63,11 +63,13 @@ spinner = Halo(text_color="blue", spinner="dots")
     is_flag=True,
     help=f"Displays information about the current Kubernetes cluster (Kind)",
 )
-def k8s(**params: dict) -> None:
+@click.pass_context
+def k8s(ctx: click.Context, **params: dict) -> None:
     """Functions applicable to package management, microservices and Docker images.
 
     This section will begin the process of creating a new package, updating the package (version), or releasing the package.
     """
+    action_requested = False
     
     # GPG keys for encryption and decryption of the project data
     _pubkey = os.path.join(os.path.expanduser("~"), ".pfo", "keys", "pfo.pub")
@@ -75,6 +77,7 @@ def k8s(**params: dict) -> None:
     
     # These are the keys that will be used for encryption and decryption of the project data
     if params.get("create", False):
+        action_requested = True
         spinner.start("Creating Kind cluster...\n\n")
         if not os.path.exists(_pubkey) or not os.path.exists(_privkey):
             create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
@@ -121,6 +124,7 @@ def k8s(**params: dict) -> None:
         exit()
 
     if params.get("delete", False):
+        action_requested = True
         # Deletes the Kind cluster and all associated resources in the local namespace
         spinner.start("Deleting Kind cluster (local namespace)...\n\n")
         Cluster.delete()
@@ -128,6 +132,7 @@ def k8s(**params: dict) -> None:
         exit()
 
     if params.get("delete_all", False):
+        action_requested = True
         # Deletes all Kind clusters and associated resources
         spinner.start("Deleting all Kind clusters...\n\n")
         Cluster.delete_all()
@@ -135,11 +140,13 @@ def k8s(**params: dict) -> None:
         exit()
     
     if params.get("info", False):
+        action_requested = True
         Cluster.cluster_info()
         spinner.succeed("Complete!")
         exit()
 
     if params.get("update", False):
+        action_requested = True
         spinner.start("Updating Kind cluster...\n\n")
         cluster = Cluster(env="local")
         cluster.update()
@@ -147,8 +154,8 @@ def k8s(**params: dict) -> None:
         spinner.succeed("Complete!")
         exit()
 
-    if not any(params.values()):
-        print_help_msg(k8s)
+    if not action_requested and ctx.invoked_subcommand is None:
+        print(click.get_current_context().get_help())
 
 class Cluster():
     """Class for managing Kubernetes clusters (Kind)."""
@@ -754,16 +761,21 @@ def create_enc_directory():
     is_flag=True,
     help="Log into Docker with your GCP credentials.",
 )
-
-def docker(**params: dict) -> None:
+@click.pass_context
+def docker(ctx: click.Context, **params: dict) -> None:
     """Docker login for image pulls."""
+    action_requested = False
     if params["aws"] == True:
-        print("farts")
+        # Let's login to Docker with AWS credentials
+        action_requested = True
+        docker_login(cloud="aws") # Login to Docker with AWS credentials
+        spinner.succeed("Docker login with AWS credentials successful!")
         exit()
 
     if params["gcp"] == True:
-        print("GCP is not supported yet.")
+        action_requested = True
+        spinner.warn("GCP is not supported yet.")
         exit()
 
-
-    print(click.get_current_context().get_help())
+    if not action_requested and ctx.invoked_subcommand is None: # Also check for invoked_subcommand for consistency
+        print(ctx.get_help())

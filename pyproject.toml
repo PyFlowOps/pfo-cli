@@ -23,6 +23,7 @@ python-gnupg = "^0.5.4"
 sopsy = "^1.1.0"
 virtualenv = "^20.31.2"
 cryptography = "^45.0.5"
+boto3 = "^1.39.14"
 
 [build-system]
 requires = ["poetry-core"]
