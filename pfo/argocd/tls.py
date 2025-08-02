@@ -24,6 +24,7 @@ def load_argocd_config():
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE, "..", "k8s", "k8s_config.json")
+_env = "pyops"
 _data = load_argocd_config()  # Load the configuration data from the JSON file, specifically for ArgoCD.
 _cert_file = os.path.expanduser(_data.get("tls_cert", ""))
 _key_file =  os.path.expanduser(_data.get("tls_key", ""))
@@ -143,7 +144,7 @@ def add_cert_data_to_secret():
     _tls_spinner.start("Adding TLS certificate and key to ArgoCD secret...")
 
     try:
-        _secret_yaml_file = _data.get("secret_manifest", "~/.pfo/k8s/local/overlays/argocd/argocd-ssl-certs.yaml")  # The name of the secret in Kubernetes
+        _secret_yaml_file = _data.get("secret_manifest", f"~/.pfo/k8s/{_env}/overlays/argocd/argocd-ssl-certs.yaml")  # The name of the secret in Kubernetes
 
         # We need to get the contents of the secret manifest file.
         with open(os.path.expanduser(_secret_yaml_file), "r") as f:
@@ -177,7 +178,7 @@ def install():
     """
     Install the TLS configuration for ArgoCD.
     """
-    _secret_yaml_file = _data.get("secret_manifest", "~/.pfo/k8s/local/overlays/argocd/argocd-ssl-certs.yaml")  # The name of the secret in Kubernetes
+    _secret_yaml_file = _data.get("secret_manifest", f"~/.pfo/k8s/{_env}/overlays/argocd/argocd-ssl-certs.yaml")  # The name of the secret in Kubernetes
 
     if not check_tls_config_exists():
         create_tls_config() # Create the TLS configuration if it does not exist

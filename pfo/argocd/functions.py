@@ -5,8 +5,11 @@ import time
 import subprocess
 
 from halo import Halo
+from pfo.k8s import k8s_config
 
 spinner = Halo(text_color="blue", spinner="dots")
+
+argocd_config = k8s_config["argocd"]
 
 def install() -> None:
     """This function will install ArgoCD in the Kind cluster."""
@@ -20,7 +23,7 @@ def install_argcod() -> None:
     """This function will install ArgoCD in the Kind cluster."""
     # Now we will install ArgoCD in the Kind cluster
     # This will install ArgoCD in the argocd namespace
-    _argo_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml"]
+    _argo_deployment = ["kubectl", "apply", "-n", "argocd", "-f", f"https://raw.githubusercontent.com/argoproj/argo-cd/{argocd_config['version']}/manifests/install.yaml"]
     try:
         _resp = subprocess.run(_argo_deployment, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:

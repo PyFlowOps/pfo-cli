@@ -22,7 +22,7 @@ from halo import Halo
 
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
-#from pfo.k8s import metallb
+from pfo.k8s import metallb
 from pfo.k8s import traefik
 from pfo import argocd
 from src.tools import print_help_msg
@@ -210,7 +210,7 @@ class Cluster():
     @staticmethod
     def cluster_info() -> None:
         try:
-            res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-local"], check=True, capture_output=True, text=True)
+            res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-pyops"], check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to retrieve Kind cluster info: {e}")
             return
@@ -253,7 +253,7 @@ class Cluster():
 
         # We need to install the base prerequisites for the Kubernetes cluster, and other applications like Traefik and ArgoCD, etc.
         self.__install_k8s_prereqs() # Install the base Kubernetes prerequisites - ArgoCD Namespace, etc.
-        #metallb.install() # Install MetalLB in the Kind cluster
+        metallb.install() # Install MetalLB in the Kind cluster
         traefik.install()
         argocd.install()
 
@@ -284,8 +284,10 @@ class Cluster():
                 self.__build_and_load_docker_images(pfo_config=pfo_config)
 
             # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
+            """
             kubernetes_dirs = ["base", "overlays"]
             if pfo_config.get("k8s", {}).get("deploy", False):
+            
                 for _kdir in kubernetes_dirs:
                     with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "r") as kf:
                         # Since the deploy key is true, we will add the docker image to the kustomization.yaml file
@@ -313,6 +315,7 @@ class Cluster():
                     # Now we will write the kustomization.yaml file back to the disk
                     with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
                         yaml.dump(_kdata, kf, default_flow_style=False)
+            """
 
         # Now we will add the ArgoCD SSH private key to the Kubernetes secrets
         # If the secret is a Repository Secret, we will add the private key to the secretsw
@@ -423,7 +426,10 @@ class Cluster():
                 if _attempt == _max - 1:
                     _waitspin.fail(f"Failed to establish CRD: {_resp.stderr}; Max attempts reached. Exiting...")
                     return
+                
         _waitspin.stop()  # Stop the spinner after waiting
+
+        time.sleep(10)  # Wait for a few seconds before applying the overlays
 
         _o1 = [f"kustomize build {__overlays} | kubectl apply -f -"]  # Build the base manifests using kustomize
         
