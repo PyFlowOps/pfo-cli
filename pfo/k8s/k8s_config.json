@@ -1,6 +1,7 @@
 {
     "argocd":
     {
+        "version": "v2.10.3",
         "enabled": true,
         "namespace": "argocd",
         "basedir": "~/.pfo/k8s/argocd",
@@ -8,7 +9,12 @@
         "github_ssh_priv": "~/.pfo/argocd/argocd_github",
         "tls_cert": "~/.pfo/argocd/argocd-ssl-tls.crt",
         "tls_key": "~/.pfo/argocd/argocd-ssl-tls.key",
-        "secret_manifests": ["~/.pfo/k8s/local/overlays/argocd/argocd-ssl-certs.yaml", "~/.pfo/k8s/local/overlays/argocd/argocd-ssh-secret.yaml"]
+        "secret_manifests": ["~/.pfo/k8s/pyops/overlays/argocd/argocd-ssl-certs.yaml"]
+    },
+    "aws": {
+        "ecr": {
+            "region": "us-east-2"
+        }
     },
     "gpg":
     {
@@ -18,8 +24,9 @@
     },
     "traefik":
     {
+        "version": "v3.5.0",
         "enabled": true,
         "namespace": "traefik",
-        "values_file": "~/.pfo/k8s/local/overlays/traefik/traefik-values.yaml"
+        "values_file": "~/.pfo/k8s/pyops/overlays/traefik/traefik-values.yaml"
     }
 }
