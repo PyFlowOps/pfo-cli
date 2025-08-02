@@ -5,9 +5,9 @@ import subprocess
 from halo import Halo
 from pfo.k8s import k8s_config
 
-_env = "pyops"
 _manspinner = Halo(spinner="dots", text_color="blue")
 
+_env = "pyops"
 argocd_config = k8s_config["argocd"] # Load the ArgoCD configuration from the k8s_config.json file
 _private_ssh_key: str = os.path.expanduser(argocd_config["github_ssh_priv"])
 #_public_ssh_key: str = os.path.expanduser(argocd_config["github_ssh_pub"])
