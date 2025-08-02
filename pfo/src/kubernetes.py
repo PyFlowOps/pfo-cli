@@ -22,7 +22,8 @@ from halo import Halo
 
 from shared.commands import DefaultCommandGroup
 from src.config import MetaData
-from pfo.k8s import traefik, metallb
+#from pfo.k8s import metallb
+from pfo.k8s import traefik
 from pfo import argocd
 from src.tools import print_help_msg
 
@@ -32,7 +33,6 @@ __author__ = "Philip De Lorenzo"
 metadata = MetaData()
 config_data = metadata.config_data
 spinner = Halo(text_color="blue", spinner="dots")
-
 
 @click.group(cls=DefaultCommandGroup, invoke_without_command=True)
 @optgroup.group(f"Kubernetes CRUD Commands", help=f"Kubnernetes (Kind) cluster administration")
@@ -97,7 +97,7 @@ def k8s(**params: dict) -> None:
         #     type=click.Choice(["local", "dev", "stg", "prd"], case_sensitive=False),
         #     default="local"
 
-        cluster = Cluster(env="local")
+        cluster = Cluster(env="pyops")
         cluster.create() # Create the Kind cluster
 
         spinner.start("Waiting for the Kind cluster to be ready...\n\n")
@@ -145,7 +145,7 @@ def k8s(**params: dict) -> None:
 
     if params.get("update", False):
         spinner.start("Updating Kind cluster...\n\n")
-        cluster = Cluster(env="local")
+        cluster = Cluster(env="pyops")
         cluster.update()
         cluster.rollout_restart_deployment() # Rollout restart the deployment in the Kind cluster
         spinner.succeed("Complete!")
@@ -253,7 +253,7 @@ class Cluster():
 
         # We need to install the base prerequisites for the Kubernetes cluster, and other applications like Traefik and ArgoCD, etc.
         self.__install_k8s_prereqs() # Install the base Kubernetes prerequisites - ArgoCD Namespace, etc.
-        metallb.install() # Install MetalLB in the Kind cluster
+        #metallb.install() # Install MetalLB in the Kind cluster
         traefik.install()
         argocd.install()
 

@@ -16,7 +16,6 @@ def install() -> None:
     install_image_updater()  # Install the ArgoCD Image Updater
     time.sleep(15) # Wait for ArgoCD to be fully deployed
 
-
 def install_argcod() -> None:
     """This function will install ArgoCD in the Kind cluster."""
     # Now we will install ArgoCD in the Kind cluster
@@ -33,6 +32,7 @@ def install_argcod() -> None:
         return
 
     spinner.succeed("ArgoCD deployment installed successfully!")
+
 def install_image_updater() -> None:
     """This function will update the ArgoCD image in the Kind cluster."""
     _imupd_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/manifests/install.yaml"]
@@ -61,3 +61,19 @@ def get_argocd_default_password() -> str|None:
     except subprocess.CalledProcessError as e:
         spinner.fail(f"Failed to get ArgoCD initial admin - {e}")
         return
+
+def install_with_helm() -> None:
+    """This function will install ArgoCD in the Kind cluster using Helm."""
+    _helm_repo_add = ["helm", "repo", "add", "argo", "https://argoproj.github.io/argo-helm"]
+    _helm_repo_update = ["helm", "repo", "update"]
+    _helm_install = ["helm", "install", "argocd", "argo/argo-cd", "-n", "argocd", "--create-namespace"]
+
+    try:
+        subprocess.run(_helm_repo_add, check=True)
+        subprocess.run(_helm_repo_update, check=True)
+        subprocess.run(_helm_install, check=True)
+    except subprocess.CalledProcessError as e:
+        spinner.fail(f"Failed to install ArgoCD with Helm: {e}")
+        return
+
+    spinner.succeed("ArgoCD installed successfully with Helm!")
