@@ -1,10 +1,14 @@
 {
+    "base": {
+        "tempdir": "/tmp/pyops"
+    },
     "argocd":
     {
         "version": "v2.10.3",
         "enabled": true,
         "namespace": "argocd",
-        "basedir": "~/.pfo/k8s/argocd",
+        "basedir": "~/.pfo/k8s/pyops/overlays/argocd",
+        "configdir": "~/.pfo/k8s/argocd",
         "github_ssh_pub": "~/.pfo/argocd/argocd_github.pub",
         "github_ssh_priv": "~/.pfo/argocd/argocd_github",
         "tls_cert": "~/.pfo/argocd/argocd-ssl-tls.crt",
@@ -28,5 +32,12 @@
         "enabled": true,
         "namespace": "traefik",
         "values_file": "~/.pfo/k8s/pyops/overlays/traefik/traefik-values.yaml"
+    },
+    "metallb":
+    {
+        "version": "v0.15.2",
+        "enabled": true,
+        "namespace": "metallb-system",
+        "basedir": "~/.pfo/k8s/pyops/overlays/metallb"
     }
 }

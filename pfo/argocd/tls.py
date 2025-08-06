@@ -171,7 +171,7 @@ def add_cert_data_to_secret():
         _tls_spinner.fail(f"Failed to add TLS certificate and key to ArgoCD secret: {e}")
         return
 
-    _tls_spinner.succeed("TLS certificate and key added to ArgoCD secret.")
+    _tls_spinner.succeed("TLS certificate and keys added to ArgoCD secret.")
     return
 
 def install():

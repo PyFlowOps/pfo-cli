@@ -12,6 +12,7 @@ import docker
 import subprocess
 import shutil
 import base64
+
 import yaml
 
 from cookiecutter.main import cookiecutter
@@ -177,11 +178,20 @@ class Cluster():
     def create(self) -> None:
         """Creates the Kubernetes cluster."""
         if self.__cluster_exists() is False: # Check if the Kind cluster already exists
-            self.__create_cluster() # Create the Kind cluster
-            spinner.succeed(f"Kind cluster {self.env} created successfully!")
+            self.__create_kind_cluster() # Create the Kind cluster
         else:
             spinner.info(f"Kind cluster {self.env} already exists. Use --update to update the cluster.")
+        
+        # Now we will create/update the base Kubernetes manifests for the project
+        # These manifests are coming from pyflowops/k8s-installs.git
+        self.set_configs_and_manifests()
+        self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
+        
+        metallb.install() # Install MetalLB in the Kind cluster
+        traefik.install() # Install Traefik in the Kind cluster
+        argocd.install() # Install ArgoCD in the Kind cluster
 
+        argocd.wait_for_argocd_server()  # Wait for the ArgoCD server to be ready
         self.update() # Update the Kind cluster
         self.__set_context() # Set the Kind cluster context
     
@@ -220,7 +230,7 @@ class Cluster():
             return
         
         print("\n")
-        print("ArgoCD URL: http://argocd.pyflowops.local:30080")
+        print("ArgoCD URL: https://argocd.pyflowops.local:30443")
         print("ArgoCD Username: admin")
         print(f"ArgoCD Password: {argocd.admin_password()}")
         print("\n")
@@ -253,9 +263,9 @@ class Cluster():
 
         # We need to install the base prerequisites for the Kubernetes cluster, and other applications like Traefik and ArgoCD, etc.
         self.__install_k8s_prereqs() # Install the base Kubernetes prerequisites - ArgoCD Namespace, etc.
-        metallb.install() # Install MetalLB in the Kind cluster
-        traefik.install()
-        argocd.install()
+        metallb.update() # Update MetalLB in the Kind cluster
+        traefik.update()
+        argocd.update()
 
         # IMPORTANT - We need to ensure that we have TLS certificates for the ArgoCD installations
         argocd.tls.install() # Install the TLS certificates for ArgoCD
@@ -279,51 +289,13 @@ class Cluster():
                     repo_url=repo_url,
                     local_path=local_path
                 )
-            
-                # Let's build the docker images for the repo
-                self.__build_and_load_docker_images(pfo_config=pfo_config)
-
-            # If we have a k8s deploy key set to true, we will apply the manifests to the Kind cluster
-            """
-            kubernetes_dirs = ["base", "overlays"]
-            if pfo_config.get("k8s", {}).get("deploy", False):
-            
-                for _kdir in kubernetes_dirs:
-                    with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "r") as kf:
-                        # Since the deploy key is true, we will add the docker image to the kustomization.yaml file
-                        _kdata = yaml.safe_load(kf)
-            
-                    # Let's augment the kustomization.yaml file with the docker image(s) from the pfo.json config file
-                    for _iname, _ in pfo_config["docker"].items():
-                        if _kdata.get("images", None):
-                            _kdata["images"].append(
-                                {
-                                    "name": pfo_config["docker"][_iname]["image"],
-                                    "newName": f"{pfo_config['docker'][_iname]['image']}",
-                                    "newTag": self.env
-                                }
-                            )
-
-                if pfo_config.get("k8s", {}).get("argocd", {}).get("managed", False):
-                    _kdata["resources"].append(f"../{pfo_config['k8s']['name']}/overlays/")
-
-                    _src = os.path.join(self.temp, repo, pfo_config["k8s"]["argocd"]["manifest_path"]) # Get the source path for the manifests
-                    _dest = os.path.join(self._k8s_dir, self.env, pfo_config["k8s"]["name"])
-
-                    self.__copy_manifests(_src, _dest) # Copy the manifests from the source to the destination
-
-                    # Now we will write the kustomization.yaml file back to the disk
-                    with open(os.path.join(self._k8s_dir, self.env, _kdir, "kustomization.yaml"), "w") as kf:
-                        yaml.dump(_kdata, kf, default_flow_style=False)
-            """
 
         # Now we will add the ArgoCD SSH private key to the Kubernetes secrets
         # If the secret is a Repository Secret, we will add the private key to the secretsw
         argocd.add_ssh_key() # Add the private key to the secrets
-
-        # Now we will build the Kubernetes manifests using kustomize and apply them to the Kind cluster
-        self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
-
+        argocd.restart_argocd() # Restart the ArgoCD server to pick up the new TLS configuration
+        time.sleep(5)  # Wait for a few seconds to ensure the ArgoCD server is restarted
+        argocd.wait_for_argocd_server()  # Wait for the ArgoCD server to be ready
         spinner.succeed("Kind cluster updated successfully!")
 
     ### Manifests creation/update methods
@@ -375,12 +347,12 @@ class Cluster():
         """Rolls out a deployment in the Kubernetes cluster."""
         _deps = self.__get_deployments_list()  # Get the list of deployments in the cluster
         if not _deps:
-            spinner.fail("No deployments found in the cluster. Cannot rollout restart.")
+            spinner.warn("No deployments found in the cluster. Cannot rollout restart.")
             return
         
         for dep_name in _deps:
             _cmd = ["kubectl", "rollout", "restart", "deployment", dep_name, "--namespace", self.env]
-            time.sleep(5)  # Wait for a few seconds before rolling out the deployment
+            time.sleep(2)  # Wait for a few seconds before rolling out the deployment
             spinner.start(f"Rolling out deployment {dep_name} in the {self.env} namespace...\n\n")
             try:
                 subprocess.run(_cmd, check=True, capture_output=True, text=True)
@@ -447,9 +419,33 @@ class Cluster():
             spinner.fail(f"Error building overlays Kubernetes manifests: {_resp.stderr}")
             return
 
-    # This function lists all directories that are in the ~/.pfo/k8s/local directory
-    # For each directory, it will check for a manifests directory
+    def __cluster_exists(self) -> bool:
+        """Checks if the Kubernetes cluster is running."""
+        try:
+            res = subprocess.run(["kind", "get", "clusters"], capture_output=True, text=True, check=True)
+            if self.env in res.stdout:
+                return True
+        except Exception as e:
+            spinner.fail(f"Error checking Kind cluster: {e}")
+            return False
+        
+        return False
 
+    def __create_kind_cluster(self) -> None:
+        if not os.path.exists(self._kind_config):
+            spinner.fail(f"Kind config file not found at {self._kind_config}. Please ensure it exists.")
+            return 
+        try:
+            res = subprocess.run(["kind", "create", "cluster", "--config", self._kind_config, "--name", self.env], check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            spinner.fail(f"Failed to create Kind cluster: {e}")
+            return
+        
+        if res.returncode == 0:
+            spinner.succeed(f"Kind cluster {self.env} created successfully!")
+        else:
+            spinner.fail(f"Failed to create Kind cluster {self.env}.")
+        
     def __install_k8s_prereqs(self) -> None:
         # Let's install the base manifests using kustomize and kubectl
         __prereqs = os.path.join(metadata.rootdir, "k8s", self.env, "prereqs")
@@ -609,34 +605,6 @@ class Cluster():
             except Exception as e:
                 spinner.fail(f"Error: {e}")
 
-    def __cluster_exists(self) -> bool:
-        """Checks if the Kubernetes cluster is running."""
-        try:
-            res = subprocess.run(["kind", "get", "clusters"], capture_output=True, text=True, check=True)
-            if self.env in res.stdout:
-                return True
-        except Exception as e:
-            spinner.fail(f"Error checking Kind cluster: {e}")
-            return False
-        
-        return False
-
-    def __create_cluster(self) -> None:
-        if not os.path.exists(self._kind_config):
-            spinner.fail(f"Kind config file not found at {self._kind_config}. Please ensure it exists.")
-            return
-        
-        try:
-            res = subprocess.run(["kind", "create", "cluster", "--config", self._kind_config, "--name", self.env], check=True, capture_output=True, text=True)
-        except subprocess.CalledProcessError as e:
-            spinner.fail(f"Failed to create Kind cluster: {e}")
-            return
-        
-        if res.returncode == 0:
-            spinner.succeed("Kind cluster created successfully!")
-        else:
-            spinner.fail("Failed to create Kind cluster.")
-        
     def __set_context(self) -> None:
         res = subprocess.run(["kubectl", "config", "set-context", "--current", f"--namespace={self.env}"], check=True, capture_output=True, text=True)
         if res.returncode == 0:
