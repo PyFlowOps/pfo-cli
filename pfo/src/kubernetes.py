@@ -228,7 +228,7 @@ class Cluster():
         if res.returncode != 0:
             spinner.fail(f"Failed to retrieve Kind cluster info: {res.stderr}")
             return
-        
+
         print("\n")
         print("ArgoCD URL: https://argocd.pyflowops.local:30443")
         print("ArgoCD Username: admin")
