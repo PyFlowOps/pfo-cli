@@ -119,6 +119,53 @@ def wait_for_argocd_server() -> None:
     
     return
 
+def wait_for_argocd_projects() -> None:
+    # Now we will wait for the CRD to be established
+    _max = 10
+    _attempt = 0
+    _waitspin = Halo(text_color="blue", spinner="dots")
+    _crdcmd = ["kubectl", "wait", "--for=condition=established", "crd/appprojects.argoproj.io", "--timeout=60s"]
+    _waitspin.start(text="Waiting for Kubernetes Cluster required resources to become available...")  # Start the spinner for waiting
+    
+    while _attempt < _max:
+        try:
+            _resp = subprocess.run(_crdcmd, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            _attempt += 1
+            time.sleep(5)  # Wait for 5 seconds before retrying
+
+        if _resp.returncode == 0:
+            _waitspin.succeed(f"crd/appprojects.argoproj.io established successfully!")
+            time.sleep(5) # Wait for a few seconds to ensure the CRD is established
+            break
+        else:
+            if _attempt == _max - 1:
+                _waitspin.fail(f"Failed to establish CRD: {_resp.stderr}; Max attempts reached. Exiting...")
+                return
+            
+    _waitspin.stop()  # Stop the spinner after waiting
+
+def wait_for_argocd_deployment() -> None:
+    _argocd_spinner.start("Waiting for the Kind cluster to be ready...\n\n")
+    count = 0
+    while True:
+        try:
+            _res = subprocess.run(["kubectl", "get", "secrets", "--namespace", "argocd", "argocd-initial-admin-secret", "-o", "json"], check=True, capture_output=True, text=True)
+            if _res.returncode == 0:
+                _argocd_spinner.succeed("Kind cluster is ready!")
+                break
+            else:
+                _argocd_spinner.fail("Kind cluster is not ready yet. Retrying...")
+                count += 1
+                if count >= 15:
+                    _argocd_spinner.fail("Kind cluster is not ready after 15 attempts. Exiting...")
+                    exit(1)
+
+        except subprocess.CalledProcessError:
+            if count < 15:
+                count += 1
+                time.sleep(10)  
+
 def update() -> None:
     """Updates the ArgoCD installation (configure with Kustomize) in the Kind cluster."""
     _argocd_spinner.start("Configuring ArgoCD...")

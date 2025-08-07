@@ -2,12 +2,13 @@ import os
 import subprocess
 
 from halo import Halo
-from k8s import k8s_config, _tempdir
+from pfo.monitoring import monitoring_config
+from pfo.k8s import _tempdir
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
 _grafana_spinner = Halo(text_color="blue", spinner="dots")
-grafana_config = k8s_config.get("grafana", {})
+grafana_config = monitoring_config.get("grafana", {})
 
 def add_repository() -> None:
     """Add the Grafana Helm repository."""

@@ -1,7 +1,14 @@
 import subprocess
 
 from halo import Halo
-from .prometheus import install
+from pfo.k8s import k8s_config
+
+# We need to get the monitoring configuration from the k8s_config
+monitoring_config = k8s_config.get("monitoring", {})
+
+from .prometheus import install as prometheus_install
+from .grafana import install as grafana_install
+from .loki import install as loki_install
 
 _monspinner = Halo(text_color="blue", spinner="dots")
 _kubectl = ["command", "-v", "kubectl"]

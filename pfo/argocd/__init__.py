@@ -11,6 +11,8 @@ from . import tls
 from .functions import install, update
 from .functions import get_argocd_default_password as admin_password
 from .functions import restart_argocd_server as restart_argocd
+from .functions import wait_for_argocd_deployment as argocd_deployment_readiness
+from .functions import wait_for_argocd_projects as project_readiness
 from .functions import wait_for_argocd_server as wait_for_argocd_server
 from .manifest import add_ssh_privkey_to_secret_manifest as add_ssh_key
 
