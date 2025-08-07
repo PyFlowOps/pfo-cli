@@ -39,5 +39,28 @@
         "enabled": true,
         "namespace": "metallb-system",
         "basedir": "~/.pfo/k8s/pyops/overlays/metallb"
+    },
+    "monitoring": {
+        "prometheus": {
+            "version": "v2.43.0",
+            "enabled": true,
+            "namespace": "monitoring",
+            "basedir": "~/.pfo/k8s/pyops/overlays/prometheus",
+            "values_file": "~/.pfo/k8s/pyops/overlays/prometheus/prometheus-values.yaml"
+        },
+        "grafana": {
+            "version": "v10.4.0",
+            "enabled": true,
+            "namespace": "monitoring",
+            "basedir": "~/.pfo/k8s/pyops/overlays/grafana",
+            "values_file": "~/.pfo/k8s/pyops/overlays/grafana/grafana-values.yaml"
+        },
+        "loki": {
+            "version": "v2.8.2",
+            "enabled": true,
+            "namespace": "monitoring",
+            "basedir": "~/.pfo/k8s/pyops/overlays/loki",
+            "values_file": "~/.pfo/k8s/pyops/overlays/loki/loki-values.yaml"
+        }
     }
 }
