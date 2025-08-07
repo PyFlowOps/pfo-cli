@@ -25,7 +25,7 @@ from shared.commands import DefaultCommandGroup
 from src.config import MetaData
 from pfo.k8s import metallb
 from pfo.k8s import traefik
-from pfo import argocd
+from pfo import argocd, monitoring
 from src.tools import print_help_msg
 
 __author__ = "Philip De Lorenzo"
