@@ -85,7 +85,7 @@ class DopplerConfig:
 
             try:
                 self.doppler.configs.create(
-                    request_input=request_input
+                    request_input=request_input # type: ignore
                 )  # This will create the config
             except Exception as e:
                 spinner.fail(
