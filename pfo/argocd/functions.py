@@ -41,7 +41,7 @@ def install_argocd() -> None:
     _argocd_spinner.succeed("ArgoCD deployment installed successfully!")
 
 def install_image_updater() -> None:
-    """This function will update the ArgoCD image in the Kind cluster."""
+    """This function will install the ArgoCD Image Updater in the Kind cluster."""
     _imupd_deployment = ["kubectl", "apply", "-n", "argocd", "-f", "https://raw.githubusercontent.com/argoproj-labs/argocd-image-updater/stable/manifests/install.yaml"]
     try:
         _resp = subprocess.run(_imupd_deployment, check=True, capture_output=True, text=True)
@@ -50,6 +50,16 @@ def install_image_updater() -> None:
         return
 
 def get_argocd_default_password() -> str|None:
+    """
+    Retrieves the default password for the ArgoCD admin user by accessing the
+    'argocd-initial-admin-secret' Kubernetes secret in the 'argocd' namespace.
+    Uses kubectl to fetch the base64-encoded password, decodes it, and returns
+    the password as a string.
+    Returns:
+        str | None: The decoded ArgoCD admin password if successful, otherwise None.
+    Raises:
+        None explicitly, but logs failure and returns None if the subprocess fails.
+    """
     """Retrieves the default password for the ArgoCD admin user."""
     _p1_cmd = ["kubectl", "-n", "argocd", "get", "secret", "argocd-initial-admin-secret", "-o", "jsonpath='{.data.password}'"]
     try:
@@ -70,6 +80,17 @@ def get_argocd_default_password() -> str|None:
         return
 
 def install_with_helm() -> None:
+    """
+    Installs ArgoCD in a Kind Kubernetes cluster using Helm.
+
+    This function performs the following steps:
+    1. Adds the Argo Helm repository.
+    2. Updates the Helm repositories.
+    3. Installs the ArgoCD chart into the 'argocd' namespace, creating the namespace if it does not exist.
+
+    If any step fails, it reports the failure using the spinner and exits the function.
+    On success, it notifies that ArgoCD was installed successfully.
+    """
     """This function will install ArgoCD in the Kind cluster using Helm."""
     _helm_repo_add = ["helm", "repo", "add", "argo", "https://argoproj.github.io/argo-helm"]
     _helm_repo_update = ["helm", "repo", "update"]

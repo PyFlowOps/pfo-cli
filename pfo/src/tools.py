@@ -151,7 +151,7 @@ def register() -> None:
 
     # Let's write the data to the .pfo file
     _pfo_file = os.path.join(_path, metadata.pfo_json_file)
-    _data = {
+    _data: dict[str, Any] = {
         "name": _name,
         "package_path": _package_path,
         "repo": _remote.url,
