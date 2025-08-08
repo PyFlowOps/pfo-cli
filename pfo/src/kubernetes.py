@@ -183,7 +183,7 @@ class Cluster():
         # Let's install and deploy the monitoring stack
         monitoring.prometheus.install()
         monitoring.grafana.install() # Install Grafana in the Kind cluster
-        #monitoring.loki.install() # Install Loki in the Kind cluster
+        monitoring.loki.install() # Install Loki in the Kind cluster
 
         self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
 
