@@ -25,10 +25,10 @@ def add_repository() -> None:
 def install() -> None:
     """Install Loki in the Kubernetes cluster."""
     _loki_spinner.start("Installing Loki...")
-    add_repository()  # Ensure the Loki Helm repository is added
+    #add_repository()  # Ensure the Loki Helm repository is added
 
     try:
-        _res = subprocess.run(["helm", "install", "loki", "loki/loki", "--namespace", "monitoring"], check=True, capture_output=True, text=True)
+        _res = subprocess.run(["helm", "install", "loki-stack", "grafana/loki", "--namespace", "monitoring"], check=True, capture_output=True, text=True)
         _loki_spinner.succeed("Loki installed successfully.")
     except subprocess.CalledProcessError as e:
         _loki_spinner.fail(f"Failed to install Loki: {e}")
