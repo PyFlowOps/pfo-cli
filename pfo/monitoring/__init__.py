@@ -9,6 +9,7 @@ monitoring_config = k8s_config.get("monitoring", {})
 from .prometheus import install as prometheus_install
 from .grafana import install as grafana_install
 from .loki import install as loki_install
+from .grafana import get_grafana_default_password as grafana_admin_password
 
 _monspinner = Halo(text_color="blue", spinner="dots")
 _kubectl = ["command", "-v", "kubectl"]

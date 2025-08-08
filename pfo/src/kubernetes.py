@@ -233,6 +233,11 @@ class Cluster():
         print("ArgoCD Username: admin")
         print(f"ArgoCD Password: {argocd.admin_password()}")
         print("\n")
+        print("Grafana URL: http://grafana.pyflowops.local:30800")
+        print("Grafana Username: admin")
+        print(f"Grafana Password: {monitoring.grafana_admin_password()}")
+        print("\n")
+        print("Prometheus URL: http://prometheus.pyflowops.local:30080")
 
     def update(self) -> None:
         """Updates the Kubernetes cluster."""

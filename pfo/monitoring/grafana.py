@@ -1,6 +1,6 @@
 import os
 import subprocess
-
+import base64
 from halo import Halo
 from pfo.monitoring import monitoring_config
 from pfo.k8s import _tempdir
@@ -41,13 +41,12 @@ def get_grafana_default_password() -> str:
     """Retrieve the Grafana admin password."""
     _grafana_spinner.start("Retrieving Grafana admin password...")
     try:
-        _res = subprocess.run(["kubectl", "get", "secret", "grafana-admin", "-n", "monitoring", "-o", "jsonpath='{.data.admin-password}'"], check=True, capture_output=True, text=True)
+        _res = subprocess.run(["kubectl", "get", "secret", "grafana", "--namespace", "monitoring", "-o", "jsonpath='{.data.admin-password}'"], check=True, capture_output=True, text=True)
         if _res.returncode != 0:
             _grafana_spinner.fail("Failed to retrieve Grafana admin password. Please check the kubectl output for details.")
             return ""
         
-        password = _res.stdout.strip().strip("'")
-        _grafana_spinner.succeed("Grafana admin password retrieved successfully.")
+        password = base64.b64decode(_res.stdout.strip().strip("'")).decode('utf-8')
         return password
     except subprocess.CalledProcessError as e:
         _grafana_spinner.fail(f"Failed to retrieve Grafana admin password: {e}")
