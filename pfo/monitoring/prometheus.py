@@ -29,7 +29,7 @@ def install() -> None:
     add_repository()  # Ensure the Prometheus Helm repository is added
 
     try:
-        _res = subprocess.run(["helm", "install", "prometheus", "prometheus-community/prometheus", "--namespace", "monitoring"], check=True, capture_output=True, text=True)
+        _res = subprocess.run(["helm", "install", "prometheus", "prometheus-community/prometheus", "--namespace", "monitoring", "--create-namespace"], check=True, capture_output=True, text=True)
         _prometheus_spinner.succeed("Prometheus installed successfully.")
     except subprocess.CalledProcessError as e:
         _prometheus_spinner.fail(f"Failed to install Prometheus: {e}")
