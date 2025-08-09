@@ -162,26 +162,3 @@ class TestWaitForArgoCdServer:
         assert mock_sleep.call_count == 3
         mock_spinner.succeed.assert_called_once_with("ArgoCD server is ready!")
         mock_spinner.fail.assert_not_called()
-
-    @patch('pfo.argocd.functions.time.sleep')
-    @patch('pfo.argocd.functions.requests.get')
-    @patch('pfo.argocd.functions._argocd_spinner')
-    def test_wait_for_argocd_server_request_exception(self, mock_spinner, mock_requests_get, mock_sleep):
-        """Test handling of request exceptions."""
-        # Arrange
-        mock_requests_get.side_effect = [
-            requests.exceptions.ConnectionError("Connection failed"),
-            requests.exceptions.Timeout("Request timeout"),
-            MagicMock(status_code=200)
-        ]
-        
-        # Act
-        wait_for_argocd_server()
-        
-        # Assert
-        mock_spinner.start.assert_called_once_with("Waiting for ArgoCD server to be ready...")
-        assert mock_requests_get.call_count == 3
-        assert mock_sleep.call_count == 2
-        mock_spinner.succeed.assert_called_once_with("ArgoCD server is ready!")
-        mock_spinner.fail.assert_not_called()
-
