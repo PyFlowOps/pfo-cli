@@ -20,4 +20,3 @@ keys.generate_ssh_keypair() # Generate SSH keypair for Kubernetes access, if not
 
 if not keys.check_ssh_key_exists():
     keys.add_ssh_key_to_github()  # Add the SSH key to GitHub for Kubernetes access
-
