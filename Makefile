@@ -22,6 +22,10 @@ setup: ##@meta Sets up the project
 	#@bash -l scripts/set-env.sh
 	@echo "[INFO] - Project setup complete!"
 
+test: ##@meta Runs the test suite
+	$(info ********** Running Tests **********)
+	@bash -l -c "unset DOPPLER_TOKEN;.python/bin/poetry run python -m pytest"
+
 clean: ##@meta Cleans the project
 	$(info ********** Cleaning ${service_title} **********)
 	@rm -rf .python

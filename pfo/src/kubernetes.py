@@ -84,19 +84,13 @@ def k8s(**params: dict) -> None:
             create_keys() # Create the encryption keys for the project - ~/.pfo/keys/pfo.pub and ~/.pfo/keys/pfo
         
         # We need to create SSH keys for the ArgoCD SSH secret - this is used to access private repositories
-        #argocd.keys.generate_ssh_keypair() # This creates the needed SSH keys for the ArgoCD SSH secret - ~/.pfo/argocd
+        argocd.keys.generate_ssh_keypair() # This creates the needed SSH keys for the ArgoCD SSH secret - ~/.pfo/argocd
         
         # Now, if the SSH key is not present in Github as an SSH Deploy Key, we will add it
-        #if not argocd.keys.check_ssh_key_exists():
-        #    argocd.keys.add_ssh_key_to_github()
+        if not argocd.keys.check_ssh_key_exists():
+            argocd.keys.add_ssh_key_to_github()
 
-        # This logic block will allow the user to select the environment for the Kind cluster
-        # Currently, local is the only supported environment, but this can be extended in the future
-        # _environment = click.prompt(
-        #     "Select the environment for the Kind cluster",
-        #     type=click.Choice(["local", "dev", "stg", "prd"], case_sensitive=False),
-        #     default="local"
-
+        ### This block actually creates the Kind cluster
         cluster = Cluster(env="local")
         cluster.create() # Create the Kind cluster
 
@@ -254,8 +248,8 @@ class Cluster():
         # We need to install the base prerequisites for the Kubernetes cluster, and other applications like Traefik and ArgoCD, etc.
         self.__install_k8s_prereqs() # Install the base Kubernetes prerequisites - ArgoCD Namespace, etc.
         metallb.install() # Install MetalLB in the Kind cluster
-        traefik.install()
-        argocd.install()
+        traefik.install() # Install Traefik in the Kind cluster
+        argocd.install() # This installs ArgoCD in the Kind cluster
 
         # IMPORTANT - We need to ensure that we have TLS certificates for the ArgoCD installations
         argocd.tls.install() # Install the TLS certificates for ArgoCD
@@ -263,6 +257,7 @@ class Cluster():
         # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
         # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
         # If true, we will need to get the docker image of the microservice from the "docker" key in the pfo.json config file.
+        """
         for repo, pfo_config in self._repos_with_pfo.items():
             # If we have a docker image to build in the repo, this logic block will be entered and handle building the image and applying the manifests
             if pfo_config.get("docker", {}):
@@ -316,11 +311,10 @@ class Cluster():
 
         # Now we will add the ArgoCD SSH private key to the Kubernetes secrets
         # If the secret is a Repository Secret, we will add the private key to the secretsw
-        argocd.add_ssh_key() # Add the private key to the secrets
-
+        #argocd.add_ssh_key() # Add the private key to the secrets
+        """
         # Now we will build the Kubernetes manifests using kustomize and apply them to the Kind cluster
-        self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
-
+        #self.kustomize_build() # Build the Kubernetes manifests using kustomize and apply them
         spinner.succeed("Kind cluster updated successfully!")
 
     ### Manifests creation/update methods
@@ -460,6 +454,7 @@ class Cluster():
             spinner.fail(f"Failed to build base Kubernetes prereqs: {_resp.stderr}")
             return
 
+    ### Deprecate
     def __load_image(self, image_name: str, nodes: str) -> None:
         """Loads a Docker image from the local filesystem to the kind cluster.
         
@@ -519,6 +514,7 @@ class Cluster():
         except Exception as e:
             spinner.fail(f"Error: {e}")
 
+    ### Deprecate
     def __build_and_load_docker_images(self, pfo_config: Any) -> None:
         # Now we need to get the docker image from the repo - it should now be cloned to /tmp/.pfo/<repo>
         # We need to get the artifact (docker image) for this project and add it to the manifest(s)
