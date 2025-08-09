@@ -5,6 +5,7 @@ import time
 import subprocess
 import requests
 import urllib3
+from typing import Optional
 
 from halo import Halo
 from pfo.k8s import k8s_config, _tempdir
@@ -49,7 +50,7 @@ def install_image_updater() -> None:
         _argocd_spinner.fail(f"Failed to install ArgoCD: {e}")
         return
 
-def get_argocd_default_password() -> str|None:
+def get_argocd_default_password() -> Optional[str]:
     """
     Retrieves the default password for the ArgoCD admin user by accessing the
     'argocd-initial-admin-secret' Kubernetes secret in the 'argocd' namespace.
