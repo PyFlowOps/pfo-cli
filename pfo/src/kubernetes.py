@@ -215,9 +215,17 @@ class Cluster():
             return
         
         print("\n")
+        print("Kubernetes Cluster Information:")
+        print(f"Cluster Name: kind-{_env}")
+        print("\n")
         print("ArgoCD URL: http://argocd.pyflowops.local:30080")
         print("ArgoCD Username: admin")
         print(f"ArgoCD Password: {argocd.admin_password()}")
+        print("\n")
+        print("Prometheus URL: http://prometheus.pyflowops.local:30080")
+        print("Grafana URL: http://grafana.pyflowops.local:30080")
+        print("\n")
+        print("Traefik Dashboard URL: http://traefik.pyflowops.local:30080/dashboard/")
         print("\n")
 
     def update(self) -> None:
