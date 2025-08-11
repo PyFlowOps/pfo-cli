@@ -1,12 +1,13 @@
 {
     "base": {
         "tempdir": "/tmp/pyops",
+        "host_ipaddress": "127.0.0.1",
         "hosts": [
-            "127.0.0.1  argocd.pyflowops.local",
-            "127.0.0.1  traefik.pyflowops.local",
-            "127.0.0.1  prometheus.pyflowops.local",
-            "127.0.0.1  grafana.pyflowops.local",
-            "127.0.0.1  loki.pyflowops.local"
+            "argocd.pyflowops.local",
+            "traefik.pyflowops.local",
+            "prometheus.pyflowops.local",
+            "grafana.pyflowops.local",
+            "loki.pyflowops.local"
         ]
     },
     "argocd":

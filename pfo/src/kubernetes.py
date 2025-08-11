@@ -32,6 +32,7 @@ __author__ = "Philip De Lorenzo"
 metadata = MetaData()
 config_data = metadata.config_data
 spinner = Halo(text_color="blue", spinner="dots")
+_env = "pyops"
 
 
 @click.group(cls=DefaultCommandGroup, invoke_without_command=True)
@@ -91,7 +92,7 @@ def k8s(**params: dict) -> None:
             argocd.keys.add_ssh_key_to_github()
 
         ### This block actually creates the Kind cluster
-        cluster = Cluster(env="local")
+        cluster = Cluster(env=_env)
         cluster.create() # Create the Kind cluster
 
         spinner.start("Waiting for the Kind cluster to be ready...\n\n")
@@ -139,7 +140,7 @@ def k8s(**params: dict) -> None:
 
     if params.get("update", False):
         spinner.start("Updating Kind cluster...\n\n")
-        cluster = Cluster(env="local")
+        cluster = Cluster(env=_env)
         cluster.update()
         cluster.rollout_restart_deployment() # Rollout restart the deployment in the Kind cluster
         spinner.succeed("Complete!")
@@ -150,7 +151,7 @@ def k8s(**params: dict) -> None:
 
 class Cluster():
     """Class for managing Kubernetes clusters (Kind)."""
-    def __init__(self, env: str = "local") -> None:
+    def __init__(self, env: str = _env) -> None:
         self.env: str = env
         self.temp: str = "/tmp/.pfo"
         self._k8s_dir: str = os.path.join(metadata.rootdir, "k8s") # Directory for the Kubernetes manifests
@@ -193,10 +194,10 @@ class Cluster():
     @staticmethod
     def delete() -> None:
         """Deletes the Kubernetes cluster."""
-        _cmd = ["kind delete cluster --name local"]
+        _cmd = ["kind", "delete", "cluster", "--name", _env]
         try:
-            subprocess.run(_cmd, shell=True, check=True, capture_output=True, text=True)
-            spinner.succeed("Kind cluster deleted successfully - local namespace!")
+            subprocess.run(_cmd, check=True, capture_output=True, text=True)
+            spinner.succeed(f"Kind cluster deleted successfully - {_env} namespace!")
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to delete Kind clusters: {e}")
             return
@@ -204,7 +205,7 @@ class Cluster():
     @staticmethod
     def cluster_info() -> None:
         try:
-            res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-local"], check=True, capture_output=True, text=True)
+            res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-{_env}"], check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
             spinner.fail(f"Failed to retrieve Kind cluster info: {e}")
             return
