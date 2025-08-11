@@ -28,7 +28,8 @@ from pfo.k8s import traefik
 from pfo.k8s import _tempdir
 from pfo import argocd
 
-from pfo.shared import etc
+from pfo.shared import ensure_hosts_entries
+
 from pfo import monitoring
 from src.tools import print_help_msg
 
@@ -228,16 +229,19 @@ class Cluster():
         if res.returncode != 0:
             spinner.fail(f"Failed to retrieve Kind cluster info: {res.stderr}")
             return
-
+        print("\n")
         print("Kubernetes cluster information:")
-        print("**" * 50)
+        print("**" * 20)
         print("ArgoCD URL: https://argocd.pyflowops.local:30443")
         print("ArgoCD Username: admin")
         print(f"ArgoCD Password: {argocd.admin_password()}")
-        print("**" * 50)
-        print("Prometheus URL: http://prometheus.pyflowops.local:30800")
-        print("Grafana URL: http://grafana.pyflowops.local:30800")
-        print("**" * 50)
+        print("**" * 20)
+        print("Prometheus URL: http://prometheus.pyflowops.local:30080")
+        print("Grafana URL: http://grafana.pyflowops.local:30080")
+        print("Grafana Username: admin")
+        print(f"Grafana Password: {monitoring.grafana_admin_password()}")
+        print("**" * 20)
+        ensure_hosts_entries()  # Ensure that the host entries are present in the /etc/hosts file
         print("\n")
 
     def update(self) -> None:

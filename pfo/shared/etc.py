@@ -100,7 +100,7 @@ def __add_needed_hosts_to_hosts_file():
     spinner.succeed("Host entries added successfully.")
     return
 
-def ensure_hosts_entries():
+def __ensure_hosts_entries():
     """
     Ensure that the specified entries are present in the /etc/hosts file.
     """
@@ -116,7 +116,7 @@ def ensure_hosts_entries():
         for i in hosts_entries_to_add:
             # Here we would add the needed hosts to the /etc/hosts file
             # For now, we will just print the entries that would be added
-            spinner.warn(f"Please add the line -- {i} -- to /etc/hosts")
+            print(f"Please add the line -- {i} -- to /etc/hosts")
         
         # This function is currently under construction
         # We will want to implement the actual addition of hosts to the /etc/hosts file

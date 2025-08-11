@@ -39,7 +39,6 @@ def install() -> None:
 
 def get_grafana_default_password() -> str:
     """Retrieve the Grafana admin password."""
-    _grafana_spinner.start("Retrieving Grafana admin password...")
     try:
         _res = subprocess.run(["kubectl", "get", "secret", "grafana", "--namespace", "monitoring", "-o", "jsonpath='{.data.admin-password}'"], check=True, capture_output=True, text=True)
         if _res.returncode != 0:

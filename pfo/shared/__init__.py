@@ -16,4 +16,4 @@ _tempdir = k8s_config.get("base", {}).get("tempdir", "/tmp/pyops")
 if not os.path.exists(_tempdir):
     os.makedirs(_tempdir, exist_ok=True)
 
-from . import etc
+from .etc import __ensure_hosts_entries as ensure_hosts_entries
