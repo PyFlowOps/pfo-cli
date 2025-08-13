@@ -42,6 +42,9 @@ parser.add_argument(
     "--toml", action="store_true", help="The version to set in pyproject.toml"
 )
 parser.add_argument(
+    "--pfo", action="store_true", help="The version to set in pfo.json"
+)
+parser.add_argument(
     "--draft_release",
     action="store_true",
     help="The new draft release version to set in the repository",
@@ -54,6 +57,27 @@ if args.debug:
 else:
     ic.disable()
 
+def _version_check(version: str) -> bool:
+    """
+    Checks if the version is in the correct format.
+
+    Args:
+        version (str): The version to check.
+
+    Returns:
+        bool: True if the version is in the correct format, False otherwise.
+    """
+    if not isinstance(version, str):
+        return False
+
+    parts = version.lstrip("v").split(".")
+    if len(parts) != 3:
+        return False
+
+    return all(part.isdigit() for part in parts)
+
+def version_tuple(v):
+    return tuple(map(int, v.lstrip("v").split(".")))
 
 def prechecks(obj: list[dict]) -> bool:
     """
@@ -74,15 +98,22 @@ def prechecks(obj: list[dict]) -> bool:
     _draftrelease = get_draft_release_version(obj=obj)
     _prerelease = get_prerelease_version(obj=obj)
     _latest = get_latest_version(obj=obj)
-    _toml = get_toml_version()
+    _toml = get_toml_version() if os.path.isfile(os.path.join(os.getcwd(), "pyproject.toml")) else None
+    _pfo = get_pfo_version() if os.path.isfile(os.path.join(os.getcwd(), "pfo.json")) else None
 
     ic("Releases found in the repoistory")
     ic(f"Draft-Release: {_draftrelease}")
     ic(f"Pre-Release: {_prerelease}")
     ic(f"Latest Release: {_latest}")
     ic(f"Version Toml: {_toml}")
+    ic(f"Version PFO: {_pfo}")
 
     # Let's run this logic block if there is NO draft release found
+    if _toml is None and _pfo is None:
+        raise Exception(
+            "There must be a version in either pyproject.toml or pfo.json to set the draft release."
+        )
+
     if not _draftrelease:
         # We need to make sure that the new draft version is higher than the any current pre-releases, or published releases
         # If this current toml_version is higher than the latest release, AND any current pre-releases, then we can use this as the draft version
@@ -90,31 +121,49 @@ def prechecks(obj: list[dict]) -> bool:
 
         # If there is a latest release, then the pre-release must be greater than the latest release
         if _latest:
-            if not _toml.split(".") > _latest.lstrip("v").split("."):
-                raise Exception(
-                    "The toml version must be greater than the latest version."
-                )
+            if _toml:
+                if not version_tuple(_toml) > version_tuple(_latest):
+                    raise Exception(
+                        "The toml version must be greater than the latest version."
+                    )
+            if _pfo:
+
+                if not version_tuple(_pfo) > version_tuple(_latest):
+                    raise Exception(
+                        "The pfo version must be greater than the latest version."
+                    )
 
             if _prerelease:
-                if not _prerelease.split(".") > _latest.lstrip("v").split("."):
+                if not version_tuple(_prerelease) > version_tuple(_latest):
                     raise Exception(
                         "The pre-release version should be greater than the latest version."
                     )
-
-                if not _toml.split(".") > _prerelease.lstrip("v").split("."):
-                    raise Exception(
-                        "The toml version must be greater than the pre-release."
-                    )
+                if _toml:
+                    if not version_tuple(_toml) > version_tuple(_prerelease):
+                        raise Exception(
+                            "The toml version must be greater than the pre-release."
+                        )
+                if _pfo:
+                    if not version_tuple(_pfo) > version_tuple(_prerelease):
+                        raise Exception(
+                            "The pfo version must be greater than the pre-release."
+                        )
 
             ic(f"Latest Release: Pass!")
 
         else:
             if _prerelease:
                 # Since there is no latest release (this will be the first release), and no new draft release, the pre-release must be equal to the version in pyproject.toml
-                if not _toml.split(".") > _prerelease.lstrip("v").split("."):
-                    raise Exception(
-                        "The toml version must be greater than the pre-release."
-                    )
+                if _toml:
+                    if not _toml.split(".") > _prerelease.lstrip("v").split("."):
+                        raise Exception(
+                            "The toml version must be greater than the pre-release."
+                        )
+                if _pfo:
+                    if not _pfo.split(".") > _prerelease.lstrip("v").split("."):
+                        raise Exception(
+                            "The pfo version must be greater than the pre-release."
+                        )
 
             ic(f"Pre-Release: Pass!")
     else:
@@ -123,41 +172,39 @@ def prechecks(obj: list[dict]) -> bool:
             if _prerelease:
                 # With ALSO a prerelease, then draft release must be greater than the prerelease
                 # Pre-release must be greater than the latest release
-                if not _draftrelease.lstrip("v").split(".") > _prerelease.lstrip(
-                    "v"
-                ).split("."):
+                if not version_tuple(_draftrelease) > version_tuple(_prerelease):
                     raise Exception(
                         "The version of the draft release must be greater than the prerelease version."
                     )
 
-                if not _prerelease.lstrip("v").split(".") > _latest.lstrip("v").split(
-                    "."
-                ):
+                if not version_tuple(_prerelease) > version_tuple(_latest):
                     raise Exception(
                         "The pre-release version should be greater than the latest version."
                     )
             else:
-                if not _draftrelease.lstrip("v").split(".") > _latest.lstrip("v").split(
-                    "."
-                ):
+                if not version_tuple(_draftrelease) > version_tuple(_latest):
                     raise Exception(
                         "The version of the draft release must be greater than the latest version."
                     )
 
         else:
             if _prerelease:
-                if not _draftrelease.lstrip("v").split(".") > _prerelease.lstrip(
-                    "v"
-                ).split("."):
+                if not version_tuple(_draftrelease) > version_tuple(_prerelease):
                     raise Exception(
                         "The version of the draft release must be greater than the prerelease version."
                     )
 
         # If there's a draft release, it must be the same as the toml version
-        if not _draftrelease.lstrip("v").split(".") == _toml.split("."):
-            raise Exception(
-                "The draft release version must be the same in pyproject.toml."
-            )
+        if _toml:
+            if not version_tuple(_draftrelease) == version_tuple(_toml):
+                raise Exception(
+                    "The draft release version must be the same in pyproject.toml."
+                )
+        if _pfo:
+            if not version_tuple(_draftrelease) == version_tuple(_pfo):
+                raise Exception(
+                    "The draft release version must be the same in pfo.json."
+                )
 
         ic(f"Draft Release: Pass!")
 
@@ -206,7 +253,34 @@ def get_toml_version() -> str:
     return pyproject_data["tool"]["poetry"]["version"]
 
 
-def get_draft_release_version(obj: list[dict]) -> str:
+def get_pfo_version() -> str:
+    """
+    Reads the version from pfo.json.
+
+    Returns:
+        str: The version from pfo.json. (#.#.#)
+    """
+    # Construct the path to pyproject.toml
+    pfo_path = os.path.join(os.getcwd(), "pfo.json")
+
+    # Check if the file exists
+    if not os.path.exists(pfo_path):
+        raise FileNotFoundError(f"pfo.json not found in {os.getcwd()}")
+
+    with open(pfo_path, "r") as f:
+        pfo_data = json.loads(f.read())
+
+    assert (
+        pfo_data["version"] != None
+    ), "The version in pfo.json should not be None."
+    assert (
+        pfo_data["version"] != ""
+    ), "The version in pfo.json should not be empty."
+
+    return pfo_data["version"]
+
+
+def get_draft_release_version(obj: list[dict]) -> str|None:
     """
     Reads the latest draft release from the repository.
 
@@ -226,7 +300,7 @@ def get_draft_release_version(obj: list[dict]) -> str:
     return _draftrelease[0] if _draftrelease else None
 
 
-def get_latest_version(obj: list[dict]) -> str:
+def get_latest_version(obj: list[dict]) -> str|None:
     """
     Reads the latest version from the repository.
 
@@ -244,7 +318,7 @@ def get_latest_version(obj: list[dict]) -> str:
     return _latest[0] if _latest else None
 
 
-def get_prerelease_version(obj: list[dict]) -> str:
+def get_prerelease_version(obj: list[dict]) -> str|None:
     """
     Reads the latest prerelease from the repository.
 
@@ -262,7 +336,7 @@ def get_prerelease_version(obj: list[dict]) -> str:
     return _prerelease[0] if _prerelease else None
 
 
-def draft_release(obj: list[dict]) -> str:
+def draft_release(obj: list[dict]) -> str|None:
     """
     Reads the version from the draft release.
 
@@ -275,33 +349,41 @@ def draft_release(obj: list[dict]) -> str:
         obj=obj
     )  # Run some prechecks to make sure that the data is correct, this will raise an exception if the data is incorrect
 
-    return f"v{get_toml_version()}"
+    if os.path.isfile(os.path.join(os.getcwd(), "pyproject.toml")):
+        # If the toml flag is set, we will use the version from pyproject.toml
+        ic("Using version from pyproject.toml")
+        return f"v{get_toml_version()}"
+    
+    if os.path.isfile(os.path.join(os.getcwd(), "pfo.json")):
+        # If the pfo flag is set, we will use the version from pfo.json
+        ic("Using version from pfo.json")
+        return f"v{get_pfo_version()}"
+
+    print("[ERROR] No version specified. There must be a version in either pyproject.toml or pfo.json.")
+    return None
 
 
 if __name__ == "__main__":
     if args.toml:
+        # This will print the version from pyproject.toml
         print(get_toml_version())
 
+    if args.pfo:
+        # This will print the version from pfo.json
+        print(get_pfo_version())
+
     if args.latest:
-        obj = (
-            get_repo_data()
-        )  # This is a list of dictionaries from JSON format (json.loads())
+        obj = get_repo_data()  # This is a list of dictionaries from JSON format (json.loads())
         print(get_latest_version(obj=obj))
 
     if args.prerelease:
-        obj = (
-            get_repo_data()
-        )  # This is a list of dictionaries from JSON format (json.loads())
+        obj = get_repo_data()  # This is a list of dictionaries from JSON format (json.loads())
         print(get_prerelease_version(obj=obj))
 
     if args.draft:
-        obj = (
-            get_repo_data()
-        )  # This is a list of dictionaries from JSON format (json.loads())
+        obj = get_repo_data()  # This is a list of dictionaries from JSON format (json.loads())
         print(get_draft_release_version(obj=obj))
 
     if args.draft_release:
-        obj = (
-            get_repo_data()
-        )  # This is a list of dictionaries from JSON format (json.loads())
+        obj = get_repo_data() # This is a list of dictionaries from JSON format (json.loads())
         print(draft_release(obj=obj))
