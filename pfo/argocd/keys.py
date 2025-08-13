@@ -13,10 +13,18 @@ _keyspinner = Halo(spinner="dots", text_color="blue")
 
 def get_pub_key() -> str:
     """
-    Retrieves the public SSH key from the default location.
-    
-    Returns:
-        str: The public SSH key as a string.
+    Retrieves the public SSH key from the ArgoCD GitHub key file.
+    This function reads the public SSH key from the default location at
+    ~/.pfo/argocd/argocd_github.pub. It displays a spinner during the operation
+    to provide user feedback.
+        str: The public SSH key content with whitespace stripped.
+    Raises:
+        FileNotFoundError: If the public SSH key file doesn't exist at the
+                          expected location.
+        IOError: If there's an error reading the key file.
+    Note:
+        The function expects the key file to be located at:
+        ~/.pfo/argocd/argocd_github.pub
     """
     _keyspinner.start("Retrieving public SSH key...")
     ssh_key_location = os.path.join(os.path.expanduser("~"), ".pfo", "argocd")

@@ -1,14 +1,32 @@
 {
+    "base": {
+        "tempdir": "/tmp/pyops",
+        "host_ipaddress": "127.0.0.1",
+        "hosts": [
+            "argocd.pyflowops.local",
+            "traefik.pyflowops.local",
+            "prometheus.pyflowops.local",
+            "grafana.pyflowops.local",
+            "loki.pyflowops.local"
+        ]
+    },
     "argocd":
     {
+        "version": "v2.10.3",
         "enabled": true,
         "namespace": "argocd",
-        "basedir": "~/.pfo/k8s/argocd",
+        "basedir": "~/.pfo/k8s/pyops/overlays/argocd",
+        "configdir": "~/.pfo/k8s/argocd",
         "github_ssh_pub": "~/.pfo/argocd/argocd_github.pub",
         "github_ssh_priv": "~/.pfo/argocd/argocd_github",
         "tls_cert": "~/.pfo/argocd/argocd-ssl-tls.crt",
         "tls_key": "~/.pfo/argocd/argocd-ssl-tls.key",
-        "secret_manifests": ["~/.pfo/k8s/local/overlays/argocd/argocd-ssl-certs.yaml", "~/.pfo/k8s/local/overlays/argocd/argocd-ssh-secret.yaml"]
+        "secret_manifests": ["~/.pfo/k8s/pyops/overlays/argocd/argocd-ssl-certs.yaml"]
+    },
+    "aws": {
+        "ecr": {
+            "region": "us-east-2"
+        }
     },
     "gpg":
     {
@@ -18,8 +36,39 @@
     },
     "traefik":
     {
+        "version": "v3.5.0",
         "enabled": true,
         "namespace": "traefik",
-        "values_file": "~/.pfo/k8s/local/overlays/traefik/traefik-values.yaml"
+        "values_file": "~/.pfo/k8s/pyops/overlays/traefik/traefik-values.yaml"
+    },
+    "metallb":
+    {
+        "version": "v0.15.2",
+        "enabled": true,
+        "namespace": "metallb-system",
+        "basedir": "~/.pfo/k8s/pyops/overlays/metallb"
+    },
+    "monitoring": {
+        "prometheus": {
+            "version": "v2.43.0",
+            "enabled": true,
+            "namespace": "monitoring",
+            "basedir": "~/.pfo/k8s/pyops/overlays/monitoring",
+            "values_file": "~/.pfo/k8s/pyops/overlays/monitoring/prometheus-values.yaml"
+        },
+        "grafana": {
+            "version": "v10.4.0",
+            "enabled": true,
+            "namespace": "monitoring",
+            "basedir": "~/.pfo/k8s/pyops/overlays/monitoring",
+            "values_file": "~/.pfo/k8s/pyops/overlays/monitoring/grafana-values.yaml"
+        },
+        "loki": {
+            "version": "v2.8.2",
+            "enabled": true,
+            "namespace": "monitoring",
+            "basedir": "~/.pfo/k8s/pyops/overlays/monitoring",
+            "values_file": "~/.pfo/k8s/pyops/overlays/monitoring/loki-values.yaml"
+        }
     }
 }

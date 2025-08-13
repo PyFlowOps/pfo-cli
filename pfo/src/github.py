@@ -150,9 +150,3 @@ def repo(ctx: click.Context, **params: dict) -> None:
         ctx.exit(0)
 
     click.echo(ctx.get_help())
-
-    # This checks for a .pfo.json config file - analysis still needed to ensure this is a good function to have
-    # if assert_pfo_config_file():
-    #    pass
-    # else:
-    #    print_help_msg(repo)
