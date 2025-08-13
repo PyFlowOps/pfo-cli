@@ -193,7 +193,6 @@ class Cluster():
         time.sleep(5)
         argocd.wait_for_argocd_server()  # Wait for the ArgoCD server to be ready
 
-        #self.update() # Update the Kind cluster
         self.__set_context() # Set the Kind cluster context
     
     @staticmethod
@@ -271,10 +270,12 @@ class Cluster():
         #self.set_configs_and_manifests()
 
         # We need to install the base prerequisites for the Kubernetes cluster, and other applications like Traefik and ArgoCD, etc.
-        #self.__install_k8s_prereqs() # Install the base Kubernetes prerequisites - ArgoCD Namespace, etc.
         metallb.update() # Update MetalLB in the Kind cluster
         traefik.update()
         argocd.update()
+        #monitoring.prometheus.update() # Update Prometheus in the Kind cluster
+        monitoring.grafana.update() # Update Grafana in the Kind cluster
+        #monitoring.loki.update() # Update Loki in the Kind cluster
 
         # IMPORTANT - We need to ensure that we have TLS certificates for the ArgoCD installations
         #argocd.tls.install() # Install the TLS certificates for ArgoCD

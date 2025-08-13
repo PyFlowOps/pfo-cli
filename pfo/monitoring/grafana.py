@@ -4,11 +4,14 @@ import base64
 from halo import Halo
 from pfo.monitoring import monitoring_config
 from pfo.k8s import _tempdir
+from k8s import k8s_config
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
+_env = "pyops"
 _grafana_spinner = Halo(text_color="blue", spinner="dots")
 grafana_config = monitoring_config.get("grafana", {})
+grafana_values_file = os.path.expanduser(grafana_config.get("values_file", f"~/.pfo/k8s/{_env}/overlays/grafana/values.yaml"))
 
 def add_repository() -> None:
     """Add the Grafana Helm repository."""
@@ -29,7 +32,7 @@ def install() -> None:
     add_repository()  # Ensure the Grafana Helm repository is added
 
     try:
-        _res = subprocess.run(["helm", "install", "grafana", "grafana/grafana", "--namespace", "monitoring"], check=True, capture_output=True, text=True)
+        _res = subprocess.run(["helm", "install", "grafana", "grafana/grafana", "--namespace", "monitoring", "--values", grafana_values_file], check=True, capture_output=True, text=True)
         _grafana_spinner.succeed("Grafana installed successfully.")
     except subprocess.CalledProcessError as e:
         _grafana_spinner.fail(f"Failed to install Grafana: {e}")
@@ -60,7 +63,19 @@ def update() -> None:
     if not os.path.exists(_tempdir):
         os.makedirs(_tempdir, exist_ok=True)
 
-    # Create a Grafana configuration file
+    _heml_update_cmd = ["helm", "upgrade", "grafana", "grafana/grafana", "--namespace", "monitoring", "--values", grafana_values_file]
+
+    try:
+        _res = subprocess.run(_heml_update_cmd, check=True, capture_output=True, text=True)
+        _grafana_spinner.succeed("Grafana updated successfully.")
+    except subprocess.CalledProcessError as e:
+        _grafana_spinner.fail(f"Failed to update Grafana: {e}")
+        return
+
+    if _res.returncode != 0:
+        _grafana_spinner.fail("Grafana update response code was not 0. Please check the Helm output for details.")
+
+    # Run kustomize to configure Grafana with any additional resourcess
     try:
         _res = subprocess.run(["kustomize", "build", _grafana_basedir], check=True, capture_output=True, text=True)
         with open(os.path.join(_tempdir, "grafana-config.yaml"), "w+") as f:
@@ -68,15 +83,6 @@ def update() -> None:
         _grafana_spinner.succeed("Grafana configuration file created successfully.")
     except subprocess.CalledProcessError as e:
         _grafana_spinner.fail(f"Failed to create Grafana configuration file: {e}")
-        return
-
-    # Apply the Grafana configuration
-    try:
-        _res = subprocess.run(["kubectl", "apply", "-f", os.path.join(_tempdir, "grafana-config.yaml")], check=True, capture_output=True, text=True)
-        if _res.returncode != 0:
-            _grafana_spinner.fail("Grafana configuration response code was not 0. Please check the kubectl output for details.")
-    except subprocess.CalledProcessError as e:
-        _grafana_spinner.fail(f"Failed to apply Grafana configuration: {e}")
         return
 
     _grafana_spinner.succeed("Grafana configuration updated successfully.")
