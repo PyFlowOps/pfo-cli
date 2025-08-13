@@ -100,9 +100,8 @@ def install() -> None:
 
     # Install Traefik with the specified values
     try:
-        _cmd = ["helm", "install", "traefik", "traefik/traefik", "--namespace", "traefik", "-f", os.path.expanduser(traefik_values_file)]
+        _cmd = ["helm", "install", "traefik", "traefik/traefik", "--namespace", "traefik", "-f", traefik_values_file]
         _res = subprocess.run(_cmd, check=True, capture_output=True, text=True)
-
     except subprocess.CalledProcessError as e:
         _traefik_spinner.fail(f"Failed to install Traefik: {e}")
     
@@ -117,9 +116,8 @@ def update() -> None:
     _traefik_spinner.start("Updating Traefik...")
     # Let's ensure the Helm traefik repository is added
     try:
-        _cmd = ["helm", "upgrade", "traefik", "traefik/traefik", "--namespace", "traefik", "-f", os.path.expanduser(traefik_values_file)]
+        _cmd = ["helm", "upgrade", "traefik", "traefik/traefik", "--namespace", "traefik", "-f", traefik_values_file]
         _res = subprocess.run(_cmd, check=True, capture_output=True, text=True)
-
     except subprocess.CalledProcessError as e:
         _traefik_spinner.fail(f"Failed to install Traefik: {e}")
     
