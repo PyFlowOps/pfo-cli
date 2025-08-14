@@ -1,8 +1,8 @@
-![alt text](./docs/FullLogo_Transparent.png)
-
 # pfo CLI Tool
 
 This is the pfo CLI Tool.
+
+![alt text](./docs/FullLogo_Transparent.png)
 
 ## Prerequisites
 

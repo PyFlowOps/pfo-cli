@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from pfo.shared.etc import ensure_hosts_entries
+from pfo.shared import ensure_hosts_entries
 
 class TestEnsureHostsEntries:
     
@@ -27,7 +27,6 @@ class TestEnsureHostsEntries:
         
         mock_spinner.info.assert_not_called()
         mock_spinner.start.assert_called_once_with("Ensuring host entries...")
-        mock_spinner.warn.assert_called_once_with("UNDER CONSTRUCTION - This feature is not yet implemented.")
         mock_spinner.succeed.assert_called_once_with("Hosts entries ensured successfully.")
 
     @patch('pfo.shared.etc.spinner')
@@ -43,5 +42,4 @@ class TestEnsureHostsEntries:
         
         mock_spinner.info.assert_not_called()
         mock_spinner.start.assert_called_once_with("Ensuring host entries...")
-        mock_spinner.warn.assert_called_once_with("UNDER CONSTRUCTION - This feature is not yet implemented.")
         mock_spinner.succeed.assert_called_once_with("Hosts entries ensured successfully.")
