@@ -191,7 +191,7 @@ class Cluster():
 
         argocd.restart_argocd() # Restart the ArgoCD server to pick up the new TLS configuration
         time.sleep(5)
-        argocd.wait_for_argocd_server()  # Wait for the ArgoCD server to be ready
+        argocd.argocd_server_wait()  # Wait for the ArgoCD server to be ready
 
         self.__set_context() # Set the Kind cluster context
     
@@ -234,36 +234,38 @@ class Cluster():
         print("ArgoCD URL: https://argocd.pyflowops.local:30443")
         print("ArgoCD Username: admin")
         print(f"ArgoCD Password: {argocd.admin_password()}")
+        print("\n")
         print("**" * 20)
         print("Prometheus URL: http://prometheus.pyflowops.local:30080")
         print("Grafana URL: http://grafana.pyflowops.local:30080")
         print("Grafana Username: admin")
         print(f"Grafana Password: {monitoring.grafana_admin_password()}")
         print("**" * 20)
+        print("\n")
         ensure_hosts_entries()  # Ensure that the host entries are present in the /etc/hosts file
         print("\n")
 
     def update(self) -> None:
         """Updates the Kubernetes cluster."""
-        _owner = self.repo_owner
-        if not _owner:
-            spinner.fail("Cannot continue updating the Kubernetes cluster.")
-            return
+        #_owner = self.repo_owner
+        #if not _owner:
+        #    spinner.fail("Cannot continue updating the Kubernetes cluster.")
+        #    return
         
         # Let's get any repo in the Org that has a pfo.json config file in the root directory
-        _repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
+        #_repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
 
-        if not _repos:
-            spinner.info("No repositories found for the organization.")
-            return
+        #if not _repos:
+        #    spinner.info("No repositories found for the organization.")
+        #    return
 
         # Will we augment the self._repos_with_pfo dictionary with the repo name as the key and the pfo.json content as the value
         # self._repos_with_pfo data population; {repo_name: pfo.json content}
         # Now let's iterate through the repos and get the pfo.json config file if it exists
-        for repo in _repos:
-            self.__get_pfo_configs_for_repo(owner=_owner, repo=repo)
+        #for repo in _repos:
+        #    self.__get_pfo_configs_for_repo(owner=_owner, repo=repo)
 
-        spinner.info(f"Retrieved repository data from GitHub for Org: {_owner}")
+        #spinner.info(f"Retrieved repository data from GitHub for Org: {_owner}")
 
         # Now we will create/update the base Kubernetes manifests for the project
         # These manifests are coming from pyflowops/k8s-installs.git
@@ -305,7 +307,7 @@ class Cluster():
         argocd.add_ssh_key() # Add the private key to the secrets
         argocd.restart_argocd() # Restart the ArgoCD server to pick up the new TLS configuration
         time.sleep(5)  # Wait for a few seconds to ensure the ArgoCD server is restarted
-        argocd.wait_for_argocd_server()  # Wait for the ArgoCD server to be ready
+        argocd.argocd_server_wait()  # Wait for the ArgoCD server to be ready
         spinner.succeed("Kind cluster updated successfully!")
 
     ### Manifests creation/update methods
