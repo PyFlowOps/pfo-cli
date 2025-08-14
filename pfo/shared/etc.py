@@ -109,7 +109,7 @@ def __ensure_hosts_entries():
     hosts_entries_to_add = __host_entries_needed_not_in_current_file()
 
     if not hosts_entries_to_add:
-        spinner.info("No host entries needed.")
+        spinner.info("No host entries needed -- to /etc/hosts.")
         return
     else:
         spinner.start("Ensuring host entries...")

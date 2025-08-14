@@ -219,6 +219,7 @@ class Cluster():
     
     @staticmethod
     def cluster_info() -> None:
+        info_spinner = Halo(text_color="yellow", spinner="dots")
         try:
             res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-pyops"], check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
@@ -229,18 +230,19 @@ class Cluster():
             spinner.fail(f"Failed to retrieve Kind cluster info: {res.stderr}")
             return
         print("\n")
-        print("Kubernetes cluster information:")
-        print("**" * 20)
-        print("ArgoCD URL: https://argocd.pyflowops.local:30443")
-        print("ArgoCD Username: admin")
-        print(f"ArgoCD Password: {argocd.admin_password()}")
+        spinner.info("Kubernetes cluster information:")
+        spinner.info("**" * 20)
+        info_spinner.info("ArgoCD URL: https://argocd.pyflowops.local:30443")
+        info_spinner.info("ArgoCD Username: admin")
+        info_spinner.info(f"ArgoCD Password: {argocd.admin_password()}")
+        spinner.info("**" * 20)
         print("\n")
-        print("**" * 20)
-        print("Prometheus URL: http://prometheus.pyflowops.local:30080")
-        print("Grafana URL: http://grafana.pyflowops.local:30080")
-        print("Grafana Username: admin")
-        print(f"Grafana Password: {monitoring.grafana_admin_password()}")
-        print("**" * 20)
+        spinner.info("**" * 20)
+        info_spinner.info("Prometheus URL: http://prometheus.pyflowops.local:30080")
+        info_spinner.info("Grafana URL: http://grafana.pyflowops.local:30080")
+        info_spinner.info("Grafana Username: admin")
+        info_spinner.info(f"Grafana Password: {monitoring.grafana_admin_password()}")
+        spinner.info("**" * 20)
         print("\n")
         ensure_hosts_entries()  # Ensure that the host entries are present in the /etc/hosts file
         print("\n")
