@@ -4,7 +4,7 @@
 # my_target: ##@category_name sample description for my_target
 default: help
 
-.PHONY: install	setup clean help
+.PHONY: install	setup test clean help
 
 ############# Development Section #############
 install: ##@meta Installs needed prerequisites and software to develop the project
@@ -24,7 +24,7 @@ setup: ##@meta Sets up the project
 
 test: ##@meta Runs the test suite
 	$(info ********** Running Tests **********)
-	@bash -l -c "unset DOPPLER_TOKEN;.python/bin/poetry run python -m pytest"
+	@bash -l -c "unset DOPPLER_TOKEN && .python/bin/poetry run python -m pytest"
 
 clean: ##@meta Cleans the project
 	$(info ********** Cleaning ${service_title} **********)
