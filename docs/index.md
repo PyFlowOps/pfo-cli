@@ -34,6 +34,8 @@ Please see the `README.md` in the `@pyflowops/pfo-cli` repo.
 
 The command documentation for the `pfo CLI`.
 
+### [app](./commands/app.md)
+
 ### [repo](./commands/repo.md)
 
 ### [k8s](./commands/k8s.md)
