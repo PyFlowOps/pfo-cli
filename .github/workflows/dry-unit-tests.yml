@@ -18,11 +18,11 @@ jobs:
       - name: Install Python Requirements
         run: |
           pip install -r ${{ github.workspace }}/.github/workflows/src/requirements.txt
+          poetry install --no-root
         shell: bash
 
       - name: Run Tests
         run: |
           echo "Running all unit tests..."
           echo "Event Type: ${{ github.event_name }}"
-          echo "UNDER CONSTRUCTION..."
-          #bash ${{ github.workspace }}/tests/run_tests.sh -u
+          #poetry run python -m pytest
