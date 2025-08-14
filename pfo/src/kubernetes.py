@@ -219,6 +219,7 @@ class Cluster():
     
     @staticmethod
     def cluster_info() -> None:
+        info_spinner = Halo(text_color="yellow", spinner="dots")
         try:
             res = subprocess.run(["kubectl", "cluster-info", "--context", f"kind-pyops"], check=True, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
@@ -229,48 +230,25 @@ class Cluster():
             spinner.fail(f"Failed to retrieve Kind cluster info: {res.stderr}")
             return
         print("\n")
-        print("Kubernetes cluster information:")
-        print("**" * 20)
-        print("ArgoCD URL: https://argocd.pyflowops.local:30443")
-        print("ArgoCD Username: admin")
-        print(f"ArgoCD Password: {argocd.admin_password()}")
+        spinner.info("Kubernetes cluster information:")
+        spinner.info("**" * 20)
+        info_spinner.info("ArgoCD URL: https://argocd.pyflowops.local:30443")
+        info_spinner.info("ArgoCD Username: admin")
+        info_spinner.info(f"ArgoCD Password: {argocd.admin_password()}")
+        spinner.info("**" * 20)
         print("\n")
-        print("**" * 20)
-        print("Prometheus URL: http://prometheus.pyflowops.local:30080")
-        print("Grafana URL: http://grafana.pyflowops.local:30080")
-        print("Grafana Username: admin")
-        print(f"Grafana Password: {monitoring.grafana_admin_password()}")
-        print("**" * 20)
+        spinner.info("**" * 20)
+        info_spinner.info("Prometheus URL: http://prometheus.pyflowops.local:30080")
+        info_spinner.info("Grafana URL: http://grafana.pyflowops.local:30080")
+        info_spinner.info("Grafana Username: admin")
+        info_spinner.info(f"Grafana Password: {monitoring.grafana_admin_password()}")
+        spinner.info("**" * 20)
         print("\n")
         ensure_hosts_entries()  # Ensure that the host entries are present in the /etc/hosts file
         print("\n")
 
     def update(self) -> None:
         """Updates the Kubernetes cluster."""
-        #_owner = self.repo_owner
-        #if not _owner:
-        #    spinner.fail("Cannot continue updating the Kubernetes cluster.")
-        #    return
-        
-        # Let's get any repo in the Org that has a pfo.json config file in the root directory
-        #_repos: list|None = self.__current_repo_list(owner=_owner) # Get the current repo list for the owner
-
-        #if not _repos:
-        #    spinner.info("No repositories found for the organization.")
-        #    return
-
-        # Will we augment the self._repos_with_pfo dictionary with the repo name as the key and the pfo.json content as the value
-        # self._repos_with_pfo data population; {repo_name: pfo.json content}
-        # Now let's iterate through the repos and get the pfo.json config file if it exists
-        #for repo in _repos:
-        #    self.__get_pfo_configs_for_repo(owner=_owner, repo=repo)
-
-        #spinner.info(f"Retrieved repository data from GitHub for Org: {_owner}")
-
-        # Now we will create/update the base Kubernetes manifests for the project
-        # These manifests are coming from pyflowops/k8s-installs.git
-        #self.set_configs_and_manifests()
-
         # We need to install the base prerequisites for the Kubernetes cluster, and other applications like Traefik and ArgoCD, etc.
         metallb.update() # Update MetalLB in the Kind cluster
         traefik.update()
@@ -281,26 +259,6 @@ class Cluster():
 
         # IMPORTANT - We need to ensure that we have TLS certificates for the ArgoCD installations
         #argocd.tls.install() # Install the TLS certificates for ArgoCD
-
-        # For each repo in the self._repos_with_pfo dictionary, we will apply the manifests to the Kind cluster
-        # The pfo.json config file will have a "k8s" key, that will contain a subkey "deploy" which is a boolean value.
-        # If true, we will need to get the docker image of the microservice from the "docker" key in the pfo.json config file.
-        for repo, pfo_config in self._repos_with_pfo.items():
-            # If we have a docker image to build in the repo, this logic block will be entered and handle building the image and applying the manifests
-            if pfo_config.get("docker", {}):
-                if pfo_config["docker"] == {}:
-                    spinner.info(f"No docker image(s) found for repo {repo}. Skipping...")
-                    continue
-
-                # Let's clone the repo to a temporary directory
-                repo_url = f"https://github.com/{_owner}/{repo}.git" # Construct the repo URL
-                local_path = os.path.join(self.temp, repo)
-
-                # Clone the repo to the temporary directory
-                self.__clone_repo(
-                    repo_url=repo_url,
-                    local_path=local_path
-                )
 
         # Now we will add the ArgoCD SSH private key to the Kubernetes secrets
         # If the secret is a Repository Secret, we will add the private key to the secretsw
