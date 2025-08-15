@@ -127,14 +127,17 @@ def wait_for_argocd_server() -> None:
     _argocd_spinner.start("Waiting for ArgoCD server to be ready...")
     count = 0
     while count < 20:
-        _resp = requests.get("https://argocd.pyflowops.local:30443", verify=False, allow_redirects=False)
-        if _resp.status_code == 200:
-            ready = True
-            _argocd_spinner.succeed("ArgoCD server is ready!")
-            break
-        else:
-            time.sleep(10)
-            count += 1
+        try:
+            _resp = requests.get("https://argocd.pyflowops.local:30443", verify=False, allow_redirects=False)
+            if _resp.status_code == 200:
+                ready = True
+                _argocd_spinner.succeed("ArgoCD server is ready!")
+                break
+            else:
+                time.sleep(10)
+                count += 1
+        except requests.exceptions.ConnectionError as e:
+            time.sleep(5)
 
     if not ready:
         _argocd_spinner.fail("ArgoCD server is not ready after 20 attempts. Please check the logs for more details.")
